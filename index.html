@@ -299,7 +299,7 @@ npx cap open android  # opens Android Studio — build & submit to Play Store</d
 <footer>
   <span>Keep Moving</span>
   <span>·</span>
-  <span>Powered by Gemini 2.5 Flash</span>
+  <span>Powered by Gemini 3 Flash</span>
 </footer>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -583,7 +583,7 @@ Respond ONLY with a raw JSON object. No markdown fences, no preamble, no text ou
 
 For clarifying_questions: include 1-3 questions ONLY if more context would meaningfully change the advice. If the situation is clear, return empty array.`;
 
-  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash:generateContent?key=${apiKey}`;
 
   try {
     const res = await fetch(API_URL, {
