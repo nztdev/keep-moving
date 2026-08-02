@@ -2,7 +2,7 @@
   "name": "Keep Moving",
   "short_name": "Keep Moving",
   "description": "An honest breakdown of where you are and what to actually do next.",
-  "start_url": "./keepmoving.html",
+  "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
