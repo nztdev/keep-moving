@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0e14">
+<title>Keep Moving</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --amber:#f5a623;--amber-glow:rgba(245,166,35,.32);
+    --teal:#2dd4bf;--teal-glow:rgba(45,212,191,.28);
+    --rose:#e2544a;--sage:#6b9d5c;--violet:#8b7cf6;--blue:#5b9bd5;
+    --bg:#0b0e14;--bg2:#12161f;--bg3:#181d29;
+    --border:rgba(255,255,255,.08);--border2:rgba(255,255,255,.15);
+    --ink:#f4f1ea;--muted:#6b7280;
+    --display:'Sora',sans-serif;--sans:'Inter',sans-serif;--mono:'JetBrains Mono',monospace;
+  }
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+  body{font-family:var(--sans);background:var(--bg);color:var(--ink);overflow-x:hidden;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.02) 2px,rgba(0,0,0,0.02) 4px);pointer-events:none;z-index:9000;}
+
+  /* 3D BG */
+  #kmCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
+
+  /* NAV — minimal wordmark only */
+  .top-nav{position:fixed;top:0;left:0;right:0;z-index:500;display:flex;justify-content:center;align-items:center;padding:16px 20px;background:rgba(11,14,20,0.78);backdrop-filter:blur(10px);border-bottom:1px solid rgba(245,166,35,0.1);}
+  .nav-word{font-family:var(--display);font-weight:700;font-size:.95rem;color:var(--ink);letter-spacing:.5px;display:flex;align-items:center;gap:8px;}
+  .nav-word .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber-glow);}
+
+  /* PANEL SCAFFOLD */
+  .panel{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 1.25rem 4rem;overflow:hidden;}
+  .panel-overlay{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0;transition:opacity 1.1s ease;}
+  .panel.active .panel-overlay{opacity:1;}
+  .panel-hero  .panel-overlay{background:radial-gradient(ellipse 60% 50% at 50% 45%,rgba(107,114,128,0.08),transparent 70%);}
+  .panel-form  .panel-overlay{background:radial-gradient(ellipse 65% 55% at 50% 40%,rgba(45,212,191,0.05),transparent 70%);}
+  .panel-out   .panel-overlay{background:radial-gradient(ellipse 65% 55% at 50% 40%,rgba(245,166,35,0.06),transparent 70%);}
+  .panel-app   .panel-overlay{background:radial-gradient(ellipse 60% 50% at 50% 45%,rgba(45,212,191,0.07),transparent 70%);}
+  .panel-fade{position:absolute;inset:0;pointer-events:none;z-index:0;background:linear-gradient(to bottom,rgba(11,14,20,0) 0%,rgba(11,14,20,.55) 100%);}
+  .panel-inner{position:relative;z-index:2;width:100%;max-width:680px;}
+
+  .rv{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease;}
+  .panel-inner.visible .rv{opacity:1;transform:translateY(0);}
+  .rv1{transition-delay:.05s;} .rv2{transition-delay:.15s;} .rv3{transition-delay:.25s;} .rv4{transition-delay:.35s;}
+
+  /* HERO */
+  .panel-hero{text-align:center;}
+  .eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:.6rem;}
+  .hero-h1{font-family:var(--display);font-weight:800;font-size:clamp(38px,9vw,72px);line-height:1;letter-spacing:-1px;color:var(--ink);margin-bottom:.6rem;}
+  .hero-h1 span{color:var(--amber);text-shadow:0 0 40px var(--amber-glow);}
+  .tagline{font-size:15px;color:rgba(244,241,234,.62);font-weight:500;line-height:1.7;max-width:440px;margin:0 auto 1.75rem;}
+  .scroll-hint{display:flex;flex-direction:column;align-items:center;gap:5px;margin-top:2rem;opacity:0;animation:hintIn 1s ease 2s forwards;}
+  @keyframes hintIn{to{opacity:1}}
+  .sh-line{width:1px;height:24px;background:linear-gradient(to bottom,transparent,var(--amber));}
+  .sh-label{font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;}
+
+  /* KEY GATE */
+  .key-box{background:rgba(255,255,255,.025);border:1px solid var(--border);border-radius:16px;padding:1.2rem 1.3rem;display:flex;flex-direction:column;gap:.65rem;transition:border-color .2s;max-width:440px;margin:0 auto;text-align:left;}
+  .key-box:focus-within{border-color:rgba(45,212,191,0.35);}
+  .key-label{font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);}
+  .key-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .key-input{flex:1;min-width:160px;background:var(--bg2);border:1px solid var(--border);color:var(--ink);font-family:var(--mono);font-size:12px;padding:.6rem .9rem;border-radius:10px;outline:none;transition:border-color .15s;}
+  .key-input:focus{border-color:var(--teal);}
+  .key-btn{background:var(--teal);color:#0b0e14;border:none;padding:.6rem 1.2rem;font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;cursor:pointer;border-radius:10px;transition:all .2s;white-space:nowrap;}
+  .key-btn:hover{box-shadow:0 0 18px var(--teal-glow);}
+  .key-note{font-size:11px;color:#555;line-height:1.6;font-weight:500;}
+  .key-note a{color:var(--muted);}
+  .key-status{font-family:var(--mono);font-size:10px;display:none;}
+  .key-status.ok{color:var(--sage);}
+  .key-status.err{color:var(--rose);}
+
+  /* FORM PANEL */
+  .panel-form .panel-inner{text-align:left;}
+  #form-view{display:none;}
+  .form-title{font-family:var(--display);font-weight:700;font-size:clamp(24px,5vw,34px);color:var(--ink);text-align:center;margin-bottom:.4rem;letter-spacing:-.5px;}
+  .form-title span{color:var(--teal);}
+  .form-sub{font-size:13px;color:var(--muted);font-weight:500;text-align:center;margin-bottom:2rem;}
+  .field{margin-bottom:1.5rem;}
+  .flabel{font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:.55rem;display:flex;align-items:center;gap:7px;}
+  .flabel .n{border:1px solid rgba(45,212,191,0.3);color:var(--teal);width:17px;height:17px;display:flex;align-items:center;justify-content:center;font-size:9px;flex-shrink:0;border-radius:4px;}
+  textarea{width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.85rem 1.05rem;font-size:14px;font-family:var(--sans);font-weight:500;color:var(--ink);resize:vertical;outline:none;line-height:1.65;min-height:90px;transition:border-color .15s;}
+  textarea:focus{border-color:rgba(45,212,191,0.35);}
+  textarea::placeholder{color:#3a3f4a;}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;}
+  .chip{background:var(--bg3);border:1px solid var(--border);padding:.44rem .95rem;font-size:11px;font-family:var(--mono);color:var(--muted);cursor:pointer;transition:all .15s;border-radius:20px;user-select:none;white-space:nowrap;}
+  .chip:hover{border-color:var(--teal);color:var(--teal);}
+  .chip.on{background:var(--teal);color:#0b0e14;border-color:var(--teal);font-weight:700;}
+  .chip.on-low{background:var(--sage);color:#e0f0d8;border-color:var(--sage);}
+  .chip.on-mid{background:var(--amber);color:#3a2a08;border-color:var(--amber);}
+  .chip.on-high{background:var(--rose);color:#fdeceb;border-color:var(--rose);}
+  .cta{width:100%;background:var(--amber);color:#22160a;border:none;padding:1.1rem;font-family:var(--display);font-weight:700;font-size:14px;letter-spacing:.02em;cursor:pointer;border-radius:14px;transition:all .2s;margin-top:.25rem;}
+  .cta:hover:not(:disabled){box-shadow:0 0 30px var(--amber-glow);transform:translateY(-2px);}
+  .cta:disabled{opacity:.25;cursor:not-allowed;transform:none;box-shadow:none;}
+  .err-box{background:rgba(226,84,74,0.08);border:1px solid var(--rose);padding:.7rem .9rem;font-family:var(--mono);font-size:11px;color:var(--rose);margin-top:.75rem;display:none;line-height:1.55;border-radius:10px;}
+
+  /* OUTPUT PANEL */
+  .panel-out .panel-inner{text-align:left;}
+  #output-section{display:none;}
+  .sec-divider{display:flex;align-items:center;gap:10px;margin-bottom:1.75rem;}
+  .sec-divider .line{flex:1;height:1px;background:linear-gradient(to right,var(--amber),var(--teal));opacity:.35;}
+  .sec-divider .tag{font-family:var(--display);font-weight:700;font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);}
+  .loading{text-align:center;padding:3rem 0;}
+  .lbar{height:1.5px;background:var(--border);overflow:hidden;margin:1.25rem 0;border-radius:2px;}
+  .lbar-i{height:100%;background:linear-gradient(to right,var(--amber),var(--teal));animation:lp 1.8s ease-in-out infinite;}
+  @keyframes lp{0%{width:0%;margin-left:0}50%{width:55%;margin-left:22%}100%{width:0%;margin-left:100%}}
+  .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);}
+  .rblock{margin-bottom:1.75rem;border-left:2.5px solid var(--teal);padding-left:1.15rem;}
+  .rblock.warn{border-left-color:var(--amber);}
+  .rblock.hot{border-left-color:var(--rose);}
+  .rblock.good{border-left-color:var(--sage);}
+  .rblock.paths{border-left-color:var(--violet);}
+  .rblock.fwd{border-left-color:var(--blue);}
+  .blabel{font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;}
+  .btitle{font-family:var(--display);font-weight:700;font-size:16px;margin-bottom:.6rem;line-height:1.2;letter-spacing:-.3px;}
+  .bbody{font-size:14px;line-height:1.78;color:var(--ink);white-space:pre-wrap;font-weight:500;}
+  .hot-body{font-size:15px;font-weight:600;line-height:1.65;color:var(--ink);}
+  .steps-stack{display:flex;flex-direction:column;gap:10px;}
+  .sg-label{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;}
+  .step-item{background:var(--bg3);border:1px solid var(--border);padding:.6rem .95rem;font-size:13px;line-height:1.65;border-radius:10px;font-weight:500;transition:border-color .2s;}
+  .step-item:hover{border-color:rgba(45,212,191,0.25);}
+  .path-card{background:var(--bg3);border:1px solid var(--border);padding:.95rem 1.05rem;margin-bottom:8px;border-radius:12px;transition:all .2s;}
+  .path-card:hover{transform:translateX(5px);border-color:rgba(139,124,246,0.35);}
+  .path-title{font-family:var(--display);font-weight:700;font-size:12px;margin-bottom:.3rem;color:var(--teal);letter-spacing:.2px;}
+  .path-tradeoff{font-size:10px;font-family:var(--mono);color:var(--muted);margin-bottom:.45rem;}
+  .path-body{font-size:13px;line-height:1.65;color:#8b93a3;font-weight:500;}
+  .cq-block{background:var(--bg3);border:1px solid var(--border);padding:1.05rem 1.15rem;margin-bottom:1.75rem;border-radius:12px;}
+  .cq-intro{font-size:13px;line-height:1.6;margin-bottom:.75rem;color:#8b93a3;font-weight:500;}
+  .cq-list{display:flex;flex-direction:column;gap:7px;margin-bottom:.85rem;}
+  .cq-item{font-size:13px;line-height:1.55;padding-left:.8rem;border-left:2px solid rgba(45,212,191,0.3);color:var(--ink);font-weight:500;}
+  .cq-ta{width:100%;background:var(--bg2);border:1px solid var(--border);padding:.65rem .9rem;font-size:13px;font-family:var(--sans);font-weight:500;color:var(--ink);resize:vertical;outline:none;line-height:1.6;min-height:70px;border-radius:10px;transition:border-color .15s;}
+  .cq-ta:focus{border-color:rgba(45,212,191,0.35);}
+  .cq-btn{margin-top:.65rem;background:var(--teal);color:#0b0e14;border:none;padding:.65rem 1.3rem;font-family:var(--display);font-weight:700;font-size:11px;letter-spacing:.06em;cursor:pointer;border-radius:10px;transition:all .2s;}
+  .cq-btn:hover{box-shadow:0 0 16px var(--teal-glow);}
+  .export-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);}
+  .exp-btn{background:transparent;border:1px solid var(--border);padding:.5rem .95rem;font-size:10px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-radius:20px;transition:all .15s;}
+  .exp-btn:hover{border-color:var(--teal);color:var(--teal);}
+  .exp-btn.copied{border-color:var(--sage);color:var(--sage);}
+  .restart-btn{display:none;margin-top:1rem;background:transparent;border:1px solid var(--border);padding:.5rem 1.15rem;font-size:10px;font-family:var(--mono);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);cursor:pointer;border-radius:20px;transition:all .15s;}
+  .restart-btn:hover{border-color:var(--rose);color:var(--rose);}
+
+  /* APP PANEL */
+  .panel-app{text-align:center;}
+  .app-icon{width:60px;height:60px;margin:0 auto .75rem;filter:drop-shadow(0 0 22px var(--teal-glow));}
+  .app-h2{font-family:var(--display);font-weight:700;font-size:clamp(24px,5vw,36px);color:var(--ink);margin-bottom:.5rem;letter-spacing:-.5px;}
+  .app-h2 span{color:var(--teal);}
+  .app-sub{font-size:13px;color:rgba(244,241,234,.6);font-weight:500;line-height:1.75;max-width:460px;margin:0 auto 1.5rem;}
+  .app-cta-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:2rem;}
+  .app-btn{font-family:var(--display);font-weight:700;font-size:12px;letter-spacing:.3px;padding:.75rem 1.6rem;border-radius:12px;border:none;cursor:pointer;transition:.2s;color:#0b0e14;background:var(--teal);}
+  .app-btn:hover{box-shadow:0 0 22px var(--teal-glow);transform:translateY(-2px);}
+  .app-btn.ghost{background:transparent;border:1px solid var(--border2);color:var(--muted);}
+  .app-btn.ghost:hover{border-color:var(--amber);color:var(--amber);}
+  .native-card{background:var(--bg3);border:1px solid var(--border);border-radius:16px;padding:1.35rem;text-align:left;max-width:520px;margin:0 auto 1rem;}
+  .native-card h3{font-family:var(--display);font-weight:700;font-size:13px;color:var(--teal);letter-spacing:.3px;margin-bottom:.75rem;}
+  .native-card p{font-size:12px;color:var(--muted);font-weight:500;line-height:1.7;margin-bottom:.75rem;}
+  .code-block{background:#050608;border:1px solid var(--border);border-radius:10px;padding:.8rem .95rem;font-family:var(--mono);font-size:10.5px;color:#8fd4a8;line-height:1.75;overflow-x:auto;white-space:pre;margin-bottom:.75rem;}
+  .native-note{font-size:10.5px;color:#4a5060;font-weight:500;line-height:1.65;}
+
+  footer{position:relative;z-index:2;padding:1.5rem 1.25rem 3rem;font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#333a45;display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;}
+
+  @media(max-width:480px){
+    .key-row{flex-direction:column;}
+    .key-input{min-width:0;}
+    .export-row{gap:6px;}
+    .exp-btn{font-size:9px;padding:.45rem .8rem;}
+  }
+</style>
+</head>
+<body>
+
+<canvas id="kmCanvas"></canvas>
+
+<nav class="top-nav">
+  <div class="nav-word"><span class="dot"></span>Keep Moving</div>
+</nav>
+
+<!-- ══ PANEL: HERO ══ -->
+<section class="panel panel-hero" id="panel-hero">
+  <div class="panel-overlay"></div><div class="panel-fade"></div>
+  <div class="panel-inner" id="pi-hero">
+    <div class="eyebrow rv rv1">a clarity tool</div>
+    <h1 class="hero-h1 rv rv2">Keep<br><span>Moving.</span></h1>
+    <p class="tagline rv rv3">No fluff. No therapy loops. An honest breakdown of where you are and what to actually do next.</p>
+    <div class="rv rv4">
+      <div class="key-box">
+        <div class="key-label">Google Gemini API Key — required</div>
+        <div class="key-row">
+          <input type="password" class="key-input" id="api-key-input" placeholder="Paste your Gemini key..." autocomplete="off" spellcheck="false">
+          <button class="key-btn" onclick="saveKey()">SAVE</button>
+        </div>
+        <div class="key-note">
+          Stays in your browser only — sent directly to Google, never to any server.<br>
+          Free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a>
+        </div>
+        <div id="key-status" class="key-status"></div>
+      </div>
+    </div>
+    <div class="scroll-hint"><div class="sh-line"></div><div class="sh-label">Scroll</div></div>
+  </div>
+</section>
+
+<!-- ══ PANEL: FORM ══ -->
+<section class="panel panel-form" id="panel-form">
+  <div class="panel-overlay"></div><div class="panel-fade"></div>
+  <div class="panel-inner" id="pi-form">
+    <div id="form-view">
+      <div class="form-title rv rv1">Where are you <span>stuck?</span></div>
+      <div class="form-sub rv rv1">Four honest answers. That's it.</div>
+      <div class="field rv rv2">
+        <div class="flabel"><span class="n">1</span> What are you stuck on?</div>
+        <textarea id="situation" placeholder="Be specific. The more honest you are, the more useful this gets."></textarea>
+      </div>
+      <div class="field rv rv2">
+        <div class="flabel"><span class="n">2</span> What have you already tried?</div>
+        <textarea id="tried" placeholder="List what you've attempted and what happened. Don't skip this — it changes everything."></textarea>
+      </div>
+      <div class="field rv rv3">
+        <div class="flabel"><span class="n">3</span> How long have you been stuck?</div>
+        <div class="chips" id="dur-chips">
+          <div class="chip" data-v="a few days">Days</div>
+          <div class="chip" data-v="a few weeks">Weeks</div>
+          <div class="chip" data-v="a couple of months">Months</div>
+          <div class="chip" data-v="over 6 months">6+ months</div>
+          <div class="chip" data-v="over a year">1+ year</div>
+        </div>
+      </div>
+      <div class="field rv rv3">
+        <div class="flabel"><span class="n">4</span> How does this feel right now?</div>
+        <div class="chips" id="urg-chips">
+          <div class="chip" data-v="low" data-cls="on-low">Annoying but ok</div>
+          <div class="chip" data-v="medium" data-cls="on-mid">Weighing on me</div>
+          <div class="chip" data-v="high" data-cls="on-high">Need this resolved</div>
+        </div>
+      </div>
+      <div class="rv rv4">
+        <button class="cta" id="submit-btn" disabled>ANALYZE MY SITUATION →</button>
+        <div class="err-box" id="err-msg"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PANEL: OUTPUT ══ -->
+<section class="panel panel-out" id="panel-out">
+  <div class="panel-overlay"></div><div class="panel-fade"></div>
+  <div class="panel-inner" id="pi-out">
+    <div id="output-section">
+      <div class="sec-divider"><div class="line"></div><div class="tag">Analysis</div><div class="line"></div></div>
+      <div id="loading-state" class="loading">
+        <div class="lbl" id="loading-txt">Reading your situation...</div>
+        <div class="lbar"><div class="lbar-i"></div></div>
+      </div>
+      <div id="results" style="display:none"></div>
+      <button class="restart-btn" id="restart-btn" onclick="restart()">← Start over</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══ PANEL: GET THE APP ══ -->
+<section class="panel panel-app" id="panel-app">
+  <div class="panel-overlay"></div><div class="panel-fade"></div>
+  <div class="panel-inner" id="pi-app">
+    <img src="icon-192.png" alt="Keep Moving" class="app-icon rv rv1">
+    <div class="app-h2 rv rv1">Take it <span>with you.</span></div>
+    <p class="app-sub rv rv2">Keep Moving installs like a real app — home screen icon, full screen, works offline. No app store needed.</p>
+    <div class="app-cta-row rv rv3">
+      <button class="app-btn" id="installBtn" onclick="triggerInstall()">⬇ Install App</button>
+      <button class="app-btn ghost" onclick="showIosHelp()">🍎 iOS Instructions</button>
+    </div>
+    <div class="native-card rv rv4" id="iosHelpCard" style="display:none;">
+      <h3>Install on iPhone / iPad</h3>
+      <p>Safari doesn't support one-tap install — three taps instead:</p>
+      <p>1. Tap the <strong style="color:var(--ink)">Share</strong> icon in Safari's toolbar<br>
+      2. Scroll down and tap <strong style="color:var(--ink)">Add to Home Screen</strong><br>
+      3. Tap <strong style="color:var(--ink)">Add</strong> — Keep Moving now opens full-screen like any app.</p>
+    </div>
+    <div class="native-card rv rv4">
+      <h3>Going fully native — Android & iOS app stores</h3>
+      <p>This page is already a real installable app (manifest + service worker). To ship it as a native binary for Google Play or the App Store, the standard path is Capacitor — it wraps this exact codebase in a native shell with real app store distribution, push notifications, and native device APIs if needed later.</p>
+      <p style="color:#8fd4a8;font-weight:600;">Local setup (run once you have Node + Xcode/Android Studio):</p>
+      <div class="code-block">npm init -y
+npm install @capacitor/core @capacitor/cli
+npx cap init "Keep Moving" "com.keepmoving.app"
+npx cap add ios
+npx cap add android
+npx cap copy
+npx cap open ios      # opens Xcode — build & submit to App Store
+npx cap open android  # opens Android Studio — build & submit to Play Store</div>
+      <p class="native-note">This can't be compiled inside a browser session — Xcode and Android Studio need to run locally or in a CI pipeline (e.g. GitHub Actions + Fastlane), since native builds require macOS (iOS) and the Android SDK. The app you're using right now is the exact source these commands wrap — no rewrite needed.</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <span>Keep Moving</span>
+  <span>·</span>
+  <span>Powered by Gemini 2.5 Flash</span>
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ════════════════════════════════════════════════
+// THREE.JS BACKGROUND — chaos → flow particle field
+// ════════════════════════════════════════════════
+(function(){
+  const canvas = document.getElementById('kmCanvas');
+  const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(58, window.innerWidth/window.innerHeight, 0.1, 100);
+  camera.position.set(0,0,9);
+
+  window.addEventListener('resize',()=>{
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth/window.innerHeight;
+    camera.updateProjectionMatrix();
+  });
+
+  const N = 1600;
+  const geo = new THREE.BufferGeometry();
+  const positions = new Float32Array(N*3);
+  const colors = new Float32Array(N*3);
+
+  const chaosPos = [];
+  const flowPos = [];
+  const phase = [];
+
+  for(let i=0;i<N;i++){
+    chaosPos.push(new THREE.Vector3(
+      (Math.random()-0.5)*14,
+      (Math.random()-0.5)*9,
+      (Math.random()-0.5)*8
+    ));
+    const lane = Math.floor(Math.random()*7) - 3;
+    const t = Math.random();
+    flowPos.push(new THREE.Vector3(
+      (t-0.5)*16,
+      lane*1.1 + Math.sin(t*Math.PI*2 + lane)*0.3,
+      (Math.random()-0.5)*3
+    ));
+    phase.push(Math.random()*Math.PI*2);
+    positions[i*3]=chaosPos[i].x; positions[i*3+1]=chaosPos[i].y; positions[i*3+2]=chaosPos[i].z;
+  }
+  geo.setAttribute('position', new THREE.BufferAttribute(positions,3));
+  geo.setAttribute('color', new THREE.BufferAttribute(colors,3));
+
+  const mat = new THREE.PointsMaterial({
+    size: 0.075, vertexColors:true, transparent:true, opacity:0.8,
+    sizeAttenuation:true, blending:THREE.AdditiveBlending, depthWrite:false
+  });
+  const points = new THREE.Points(geo, mat);
+  scene.add(points);
+
+  // Palette: stuck (dim slate) -> moving (amber / teal)
+  const stuckCol = new THREE.Color(0x3a3f4a);
+  const amberCol = new THREE.Color(0xf5a623);
+  const tealCol  = new THREE.Color(0x2dd4bf);
+
+  let scrollFrac = 0, targetScrollFrac = 0;
+  let resolvePulse = 0;
+
+  function updateScrollFrac(){
+    const doc = document.documentElement;
+    const max = doc.scrollHeight - window.innerHeight;
+    targetScrollFrac = max>0 ? Math.min(1, Math.max(0, window.scrollY/max)) : 0;
+  }
+  window.addEventListener('scroll', updateScrollFrac, {passive:true});
+  window.addEventListener('resize', updateScrollFrac);
+  updateScrollFrac();
+
+  window._kmTriggerResolve = function(){ resolvePulse = 1; };
+
+  const clock = new THREE.Clock();
+  function animate(){
+    requestAnimationFrame(animate);
+    const dt = clock.getDelta();
+    const t = clock.elapsedTime;
+
+    scrollFrac += (targetScrollFrac - scrollFrac) * 0.04;
+    if(resolvePulse>0) resolvePulse = Math.max(0, resolvePulse - dt*0.5);
+
+    const posAttr = geo.attributes.position;
+    const colAttr = geo.attributes.color;
+
+    for(let i=0;i<N;i++){
+      const cp = chaosPos[i], fp = flowPos[i], ph = phase[i];
+
+      const jx = Math.sin(t*0.8+ph)*0.35;
+      const jy = Math.cos(t*0.6+ph*1.3)*0.35;
+      const jz = Math.sin(t*0.5+ph*0.7)*0.3;
+
+      const flowSpeed = 0.6 + resolvePulse*1.8;
+      const fx = fp.x + ((t*flowSpeed + ph) % 16) - 8;
+      const fy = fp.y + Math.sin(t*0.7+ph)*0.08;
+      const fz = fp.z;
+
+      const mixT = scrollFrac;
+      const x = THREE.MathUtils.lerp(cp.x+jx, fx, mixT);
+      const y = THREE.MathUtils.lerp(cp.y+jy, fy, mixT);
+      const z = THREE.MathUtils.lerp(cp.z+jz, fz, mixT);
+
+      posAttr.array[i*3]   = x;
+      posAttr.array[i*3+1] = y;
+      posAttr.array[i*3+2] = z;
+
+      const laneSplit = (i % 2 === 0);
+      const targetCol = laneSplit ? amberCol : tealCol;
+      const c = stuckCol.clone().lerp(targetCol, mixT*0.85 + resolvePulse*0.15);
+      colAttr.array[i*3]=c.r; colAttr.array[i*3+1]=c.g; colAttr.array[i*3+2]=c.b;
+    }
+    posAttr.needsUpdate = true;
+    colAttr.needsUpdate = true;
+
+    mat.size = 0.075 + resolvePulse*0.04;
+    camera.position.x = Math.sin(t*0.05)*0.6;
+    camera.position.y = Math.cos(t*0.04)*0.35;
+    camera.lookAt(0,0,0);
+
+    renderer.render(scene, camera);
+  }
+  animate();
+})();
+
+// ════════════════════════════════════════════════
+// PANEL REVEAL SYSTEM
+// ════════════════════════════════════════════════
+(function(){
+  const ids = ['pi-hero','pi-form','pi-out','pi-app'];
+  const secMap = {'pi-hero':'panel-hero','pi-form':'panel-form','pi-out':'panel-out','pi-app':'panel-app'};
+  const obs = new IntersectionObserver(entries=>{
+    entries.forEach(e=>{
+      e.target.classList.toggle('visible', e.isIntersecting);
+      const sec = document.getElementById(secMap[e.target.id]);
+      if(sec) sec.classList.toggle('active', e.isIntersecting);
+    });
+  },{threshold:0.28});
+  ids.forEach(id=>{const el=document.getElementById(id);if(el)obs.observe(el);});
+  setTimeout(()=>{
+    document.getElementById('pi-hero')?.classList.add('visible');
+    document.getElementById('panel-hero')?.classList.add('active');
+  },150);
+})();
+
+// ════════════════════════════════════════════════
+// PWA — SERVICE WORKER + INSTALL PROMPT
+// ════════════════════════════════════════════════
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  });
+}
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+function triggerInstall(){
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    deferredInstallPrompt.userChoice.finally(()=>{ deferredInstallPrompt = null; });
+  } else {
+    showIosHelp();
+  }
+}
+function showIosHelp(){
+  document.getElementById('iosHelpCard').style.display = 'block';
+}
+
+// ════════════════════════════════════════════════
+// KEEP MOVING LOGIC (Gemini analysis — unchanged)
+// ════════════════════════════════════════════════
+let apiKey = localStorage.getItem('km_gemini_key') || '';
+let dur = '', urg = '', lastResult = null, loadTimer = null;
+const loadMsgs = ['Reading your situation...', 'Naming the real problem...', 'Mapping your options...', 'Almost done...'];
+
+(function init() {
+  if (apiKey) {
+    document.getElementById('api-key-input').value = apiKey;
+    showKeyStatus('Key loaded.', true);
+    document.getElementById('form-view').style.display = 'block';
+  }
+})();
+
+function saveKey() {
+  const val = document.getElementById('api-key-input').value.trim();
+  if (!val || val.length < 10) { showKeyStatus("That doesn't look like a valid key.", false); return; }
+  apiKey = val;
+  localStorage.setItem('km_gemini_key', apiKey);
+  showKeyStatus("Key saved. You're good to go.", true);
+  document.getElementById('form-view').style.display = 'block';
+}
+
+function showKeyStatus(msg, ok) {
+  const el = document.getElementById('key-status');
+  el.style.display = 'block';
+  el.textContent = msg;
+  el.className = 'key-status ' + (ok ? 'ok' : 'err');
+}
+
+document.querySelectorAll('#dur-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#dur-chips .chip').forEach(x => x.classList.remove('on'));
+    c.classList.add('on'); dur = c.dataset.v; checkReady();
+  });
+});
+document.querySelectorAll('#urg-chips .chip').forEach(c => {
+  c.addEventListener('click', () => {
+    document.querySelectorAll('#urg-chips .chip').forEach(x => x.classList.remove('on-low','on-mid','on-high'));
+    c.classList.add(c.dataset.cls); urg = c.dataset.v; checkReady();
+  });
+});
+['situation','tried'].forEach(id => document.getElementById(id).addEventListener('input', checkReady));
+
+function checkReady() {
+  const ok = document.getElementById('situation').value.trim() && document.getElementById('tried').value.trim() && dur && urg;
+  document.getElementById('submit-btn').disabled = !ok;
+}
+
+document.getElementById('submit-btn').addEventListener('click', () => {
+  const situation = document.getElementById('situation').value.trim();
+  const tried = document.getElementById('tried').value.trim();
+  showOutput();
+  runAnalysis(situation, tried, dur, urg, '');
+});
+
+function showOutput() {
+  document.getElementById('output-section').style.display = 'block';
+  document.getElementById('loading-state').style.display = 'block';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('restart-btn').style.display = 'none';
+  document.getElementById('err-msg').style.display = 'none';
+  startLoadCycle();
+  document.getElementById('panel-out').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function startLoadCycle() {
+  let i = 0;
+  document.getElementById('loading-txt').textContent = loadMsgs[0];
+  clearInterval(loadTimer);
+  loadTimer = setInterval(() => { i = (i + 1) % loadMsgs.length; document.getElementById('loading-txt').textContent = loadMsgs[i]; }, 2200);
+}
+
+async function runAnalysis(situation, tried, duration, urgency, extraContext) {
+  const prompt = `You are a radical candor advisor. Direct, honest, warm when needed — like a trusted friend who tells the truth. No sugarcoating, no therapy-speak, no vague advice. Radically supportive and candid. Not superior, not preachy.
+
+USER INPUT:
+Situation: ${situation}
+What they've tried: ${tried}
+How long stuck: ${duration}
+Urgency: ${urgency}
+${extraContext ? 'Additional context: ' + extraContext : ''}
+
+Respond ONLY with a raw JSON object. No markdown fences, no preamble, no text outside the JSON.
+
+{
+  "asis_title": "punchy title (5 words max) for their real current state",
+  "asis_body": "2-3 sentences. Brutally honest. Name the actual problem underneath the surface problem if different.",
+  "honest_take": "1-2 sentences. The thing most people are too polite to say. Say it with care, not cruelty.",
+  "tobe_title": "punchy title for their realistic achievable future state",
+  "tobe_body": "2-3 sentences. Concrete, not inspirational. What actually changes.",
+  "steps": {
+    "now": ["1-2 actions to start in the next hour — specific enough to begin immediately"],
+    "tomorrow": ["1-2 actions for tomorrow"],
+    "this_week": ["1-2 actions for this week"],
+    "this_month": ["1-2 actions for this month"],
+    "longer": ["1 action for the next 3-6 months if relevant, else empty array"]
+  },
+  "paths": [
+    {"title": "3-4 word label", "trade_off": "one honest trade-off under 8 words", "description": "2 sentences: what this path looks like and realistic outcome"},
+    {"title": "3-4 word label", "trade_off": "trade-off", "description": "2 sentences"},
+    {"title": "optional third path only if genuinely distinct", "trade_off": "trade-off", "description": "2 sentences"}
+  ],
+  "future_outlook": "2-3 sentences. Grounded 3-6 month view if they follow through. No fairytale endings.",
+  "clarifying_questions": []
+}
+
+For clarifying_questions: include 1-3 questions ONLY if more context would meaningfully change the advice. If the situation is clear, return empty array.`;
+
+  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData?.error?.message || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    const raw = data.candidates[0].content.parts[0].text;
+    const clean = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    const result = JSON.parse(clean);
+    lastResult = { result, situation, tried, duration, urgency };
+
+    clearInterval(loadTimer);
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('results').style.display = 'block';
+    document.getElementById('restart-btn').style.display = 'inline-block';
+    renderResults(result);
+    if(typeof window._kmTriggerResolve === 'function') window._kmTriggerResolve();
+
+  } catch (e) {
+    clearInterval(loadTimer);
+    document.getElementById('loading-state').style.display = 'none';
+    const el = document.getElementById('err-msg');
+    el.style.display = 'block';
+    el.textContent = 'Error: ' + e.message;
+    document.getElementById('panel-form').scrollIntoView({behavior:'smooth'});
+    console.error('[keep-moving]', e);
+  }
+}
+
+function renderResults(r) {
+  const stepGroups = [
+    { key: 'now',        label: 'Right now — start today' },
+    { key: 'tomorrow',   label: 'Tomorrow' },
+    { key: 'this_week',  label: 'This week' },
+    { key: 'this_month', label: 'This month' },
+    { key: 'longer',     label: '3–6 months out' }
+  ];
+  const stepsHTML = stepGroups
+    .filter(g => r.steps[g.key] && r.steps[g.key].length > 0)
+    .map(g => `<div><div class="sg-label">${g.label}</div>${r.steps[g.key].map(s => `<div class="step-item">${esc(s)}</div>`).join('')}</div>`).join('');
+
+  const pathsHTML = r.paths.map(p => `
+    <div class="path-card">
+      <div class="path-title">${esc(p.title)}</div>
+      <div class="path-tradeoff">↔ ${esc(p.trade_off)}</div>
+      <div class="path-body">${esc(p.description)}</div>
+    </div>`).join('');
+
+  const cqHTML = r.clarifying_questions && r.clarifying_questions.length > 0 ? `
+    <div class="cq-block">
+      <div class="blabel">Want a sharper read?</div>
+      <div class="cq-intro">These would meaningfully change the advice:</div>
+      <div class="cq-list">${r.clarifying_questions.map(q => `<div class="cq-item">${esc(q)}</div>`).join('')}</div>
+      <textarea class="cq-ta" id="cq-answer" placeholder="Answer any or all of the above..."></textarea>
+      <button class="cq-btn" onclick="goDeeper()">RE-ANALYZE WITH MORE CONTEXT →</button>
+    </div>` : '';
+
+  document.getElementById('results').innerHTML = `
+    <div class="rblock warn">
+      <div class="blabel">As-is — where you actually are</div>
+      <div class="btitle">${esc(r.asis_title)}</div>
+      <div class="bbody">${esc(r.asis_body)}</div>
+    </div>
+    <div class="rblock hot">
+      <div class="blabel">Honest take</div>
+      <div class="hot-body">${esc(r.honest_take)}</div>
+    </div>
+    <div class="rblock good">
+      <div class="blabel">To-be — what becomes possible</div>
+      <div class="btitle">${esc(r.tobe_title)}</div>
+      <div class="bbody">${esc(r.tobe_body)}</div>
+    </div>
+    <div class="rblock">
+      <div class="blabel">Steps — what to actually do</div>
+      <div class="steps-stack">${stepsHTML}</div>
+    </div>
+    <div class="rblock paths">
+      <div class="blabel">Paths forward — your options</div>
+      ${pathsHTML}
+    </div>
+    <div class="rblock fwd">
+      <div class="blabel">Future outlook — 3 to 6 months</div>
+      <div class="bbody">${esc(r.future_outlook)}</div>
+    </div>
+    ${cqHTML}
+    <div class="export-row">
+      <button class="exp-btn" onclick="copyText(this)">Copy text</button>
+      <button class="exp-btn" onclick="downloadTxt()">Download .txt</button>
+      <button class="exp-btn" onclick="copySnippet(this)">Copy shareable snippet</button>
+    </div>`;
+}
+
+function goDeeper() {
+  const extra = document.getElementById('cq-answer').value.trim();
+  if (!extra) return;
+  const { situation, tried, duration, urgency } = lastResult;
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('restart-btn').style.display = 'none';
+  document.getElementById('loading-state').style.display = 'block';
+  startLoadCycle();
+  runAnalysis(situation, tried, duration, urgency, extra);
+}
+
+function buildText() {
+  if (!lastResult) return '';
+  const r = lastResult.result;
+  const groups = [
+    { key: 'now', label: 'RIGHT NOW' }, { key: 'tomorrow', label: 'TOMORROW' },
+    { key: 'this_week', label: 'THIS WEEK' }, { key: 'this_month', label: 'THIS MONTH' },
+    { key: 'longer', label: '3-6 MONTHS' }
+  ];
+  let t = `KEEP MOVING — ANALYSIS\n${'─'.repeat(40)}\n\n`;
+  t += `AS-IS: ${r.asis_title}\n${r.asis_body}\n\nHONEST TAKE\n${r.honest_take}\n\n`;
+  t += `TO-BE: ${r.tobe_title}\n${r.tobe_body}\n\nSTEPS\n`;
+  groups.forEach(g => { if (r.steps[g.key] && r.steps[g.key].length > 0) { t += `${g.label}:\n`; r.steps[g.key].forEach(s => t += `  — ${s}\n`); } });
+  t += `\nPATHS FORWARD\n`;
+  r.paths.forEach(p => t += `${p.title}\nTrade-off: ${p.trade_off}\n${p.description}\n\n`);
+  t += `FUTURE OUTLOOK\n${r.future_outlook}\n\n${'─'.repeat(40)}\nGenerated by Keep Moving\n`;
+  return t;
+}
+
+function copyText(btn) {
+  navigator.clipboard.writeText(buildText()).then(() => { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = 'Copy text'; btn.classList.remove('copied'); }, 2000); }).catch(() => alert('Copy failed — try Download .txt instead.'));
+}
+function downloadTxt() {
+  const a = document.createElement('a');
+  a.href = 'data:text/plain;charset=utf-8,' + encodeURIComponent(buildText());
+  a.download = 'keep-moving-analysis.txt'; a.click();
+}
+function copySnippet(btn) {
+  if (!lastResult) return;
+  const r = lastResult.result;
+  const s = `I got unstuck.\n\nWhere I was: ${r.asis_title}\nWhere I'm going: ${r.tobe_title}\n\n"${r.honest_take}"\n\n— Keep Moving`;
+  navigator.clipboard.writeText(s).then(() => { btn.textContent = 'Copied!'; btn.classList.add('copied'); setTimeout(() => { btn.textContent = 'Copy shareable snippet'; btn.classList.remove('copied'); }, 2000); }).catch(() => alert('Copy failed.'));
+}
+
+function restart() {
+  lastResult = null; dur = ''; urg = '';
+  document.getElementById('situation').value = '';
+  document.getElementById('tried').value = '';
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('on','on-low','on-mid','on-high'));
+  document.getElementById('output-section').style.display = 'none';
+  document.getElementById('results').style.display = 'none';
+  document.getElementById('restart-btn').style.display = 'none';
+  checkReady();
+  document.getElementById('panel-form').scrollIntoView({behavior:'smooth'});
+}
+
+function esc(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>
