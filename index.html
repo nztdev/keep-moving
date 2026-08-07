@@ -558,6 +558,15 @@
   const camera = new THREE.PerspectiveCamera(58, window.innerWidth/window.innerHeight, 0.1, 100);
   camera.position.set(0,0,9);
 
+  const horizonKeyLight = new THREE.PointLight(0xfff2dd, 0, 40);
+  horizonKeyLight.position.set(2.4, 3.2, 6.5);
+  scene.add(horizonKeyLight);
+  const horizonRimLight = new THREE.PointLight(0x6fe3d4, 0, 40);
+  horizonRimLight.position.set(-3, -1.5, 4);
+  scene.add(horizonRimLight);
+  const horizonAmbient = new THREE.AmbientLight(0x1a2230, 0);
+  scene.add(horizonAmbient);
+
   window.addEventListener('resize',()=>{
     renderer.setSize(window.innerWidth, window.innerHeight);
     camera.aspect = window.innerWidth/window.innerHeight;
@@ -603,6 +612,137 @@
   const amberCol = new THREE.Color(0xf5a623);
   const tealCol  = new THREE.Color(0x2dd4bf);
 
+  /* ═══ IGNITION SYSTEM — click sparks a seed that assimilates
+     nearby particles as you scroll, then bursts at page end ═══ */
+  const particleOrder = Array.from({length:N}, (_,i)=>i);
+  for(let i=N-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [particleOrder[i],particleOrder[j]]=[particleOrder[j],particleOrder[i]]; }
+  const particleRank = new Float32Array(N);
+  particleOrder.forEach((idx,rank)=>{ particleRank[idx] = rank; });
+  const assimilated = new Float32Array(N);
+  const explosionEnergy = new Float32Array(N);
+  const explosionDir = [];
+  for(let i=0;i<N;i++){
+    const v = new THREE.Vector3((Math.random()-0.5),(Math.random()-0.5),(Math.random()-0.5));
+    v.normalize();
+    explosionDir.push(v);
+  }
+  let ignited = false, exploding = false;
+  let seedIndex = -1, ignitionScrollFrac = 0, explodeElapsed = 0;
+  const seedWorld = new THREE.Vector3();
+
+  /* soft radial alpha textures, generated on canvas — no external assets,
+     and no hard-edged square sprites */
+  function makeAlphaTexture(kind, size){
+    size = size || 128;
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cx = size/2, cy = size/2, r = size/2;
+    const grad = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+    if(kind === 'blob'){
+      grad.addColorStop(0, 'rgba(255,255,255,1)');
+      grad.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+    } else {
+      grad.addColorStop(0, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.42, 'rgba(255,255,255,0)');
+      grad.addColorStop(0.58, 'rgba(255,255,255,0.95)');
+      grad.addColorStop(0.76, 'rgba(255,255,255,0.22)');
+      grad.addColorStop(1, 'rgba(255,255,255,0)');
+    }
+    ctx.fillStyle = grad; ctx.fillRect(0,0,size,size);
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+  const blobTex = makeAlphaTexture('blob', 128);
+  const ringTex = makeAlphaTexture('ring', 160);
+
+  const outerGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: blobTex, color: 0xf5a623, transparent:true, opacity:0,
+    blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
+  }));
+  outerGlow.renderOrder = 10;
+  scene.add(outerGlow);
+
+  const ringSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: ringTex, color: 0xf5a623, transparent:true, opacity:0, rotation:0,
+    blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
+  }));
+  ringSprite.renderOrder = 11;
+  scene.add(ringSprite);
+
+  const coreSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1, 40, 40),
+    new THREE.MeshPhongMaterial({
+      color: 0x02040a, specular: 0x9fb2c9, shininess: 120,
+      transparent:true, opacity:0
+    })
+  );
+  coreSphere.renderOrder = 12;
+  scene.add(coreSphere);
+
+  /* fast-orbiting matter — the horizon itself never rotates, but a ring of
+     matter already in orbit swirls around it continuously at high speed */
+  const ORBIT_N = 90;
+  const orbitGeo = new THREE.BufferGeometry();
+  orbitGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ORBIT_N*3), 3));
+  const orbitMat = new THREE.PointsMaterial({
+    color: 0xf5a623, size: 0.045, transparent:true, opacity:0,
+    sizeAttenuation:true, blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
+  });
+  const orbitPoints = new THREE.Points(orbitGeo, orbitMat);
+  orbitPoints.renderOrder = 13;
+  scene.add(orbitPoints);
+  const orbitBaseAngle = new Float32Array(ORBIT_N);
+  const orbitRadiusF = new Float32Array(ORBIT_N);
+  const orbitSpeedF = new Float32Array(ORBIT_N);
+  const orbitTiltF = new Float32Array(ORBIT_N);
+  for(let i=0;i<ORBIT_N;i++){
+    orbitBaseAngle[i] = Math.random()*Math.PI*2;
+    orbitRadiusF[i] = 0.85 + Math.random()*0.55;
+    orbitSpeedF[i] = 2.6 + Math.random()*2.4;
+    orbitTiltF[i] = (Math.random()-0.5)*0.55;
+  }
+
+  function readThemeColor(varName, fallback){
+    try{
+      const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+      return v || fallback;
+    }catch(e){ return fallback; }
+  }
+  function applyThemeColors(){
+    const amberHex = readThemeColor('--amber', '#f5a623');
+    const tealHex = readThemeColor('--teal', '#2dd4bf');
+    amberCol.set(amberHex);
+    tealCol.set(tealHex);
+    outerGlow.material.color.set(amberHex);
+    ringSprite.material.color.set(amberHex);
+    orbitMat.color.set(amberHex);
+    horizonRimLight.color.set(tealHex);
+  }
+  applyThemeColors();
+  window._kmRecalcTheme = applyThemeColors;
+
+  let reachedFinalSection = false;
+  const finalSectionEl = document.getElementById('panel-app');
+  if(finalSectionEl){
+    const finalObs = new IntersectionObserver(entries=>{
+      entries.forEach(e=>{ reachedFinalSection = e.isIntersecting; });
+    }, {threshold:0.2});
+    finalObs.observe(finalSectionEl);
+  }
+
+  let ignitionArmed = false;
+  setTimeout(()=>{ ignitionArmed = true; }, 1400);
+  window.addEventListener('click', ()=>{
+    if(!ignitionArmed || ignited) return;
+    ignited = true;
+    exploding = false;
+    explodeElapsed = 0;
+    seedIndex = particleOrder[0];
+    ignitionScrollFrac = scrollFrac;
+  });
+
   let scrollFrac = 0, targetScrollFrac = 0;
   let resolvePulse = 0;
 
@@ -630,6 +770,44 @@
     const posAttr = geo.attributes.position;
     const colAttr = geo.attributes.color;
 
+    /* — ignition state advance — */
+    if(ignited && !exploding){
+      const denom = Math.max(0.1, 1 - ignitionScrollFrac);
+      const progress = Math.min(1, Math.max(0, (scrollFrac - ignitionScrollFrac) / denom));
+      for(let i=0;i<N;i++){
+        if(i===seedIndex) continue;
+        const rankFrac = particleRank[i] / N;
+        const target = progress > rankFrac ? 1 : 0;
+        assimilated[i] += (target - assimilated[i]) * Math.min(1, dt*3);
+      }
+      if(reachedFinalSection){
+        exploding = true; explodeElapsed = 0;
+        for(let i=0;i<N;i++){
+          if(assimilated[i] > 0.35) explosionEnergy[i] = 1 + Math.random()*0.6;
+        }
+      }
+    } else if(exploding){
+      explodeElapsed += dt;
+      for(let i=0;i<N;i++){
+        assimilated[i] += (0 - assimilated[i]) * Math.min(1, dt*1.4);
+      }
+      if(explodeElapsed > 1.8){
+        ignited = false; exploding = false;
+        for(let i=0;i<N;i++){ assimilated[i]=0; explosionEnergy[i]=0; }
+      }
+    }
+
+    /* — the horizon is anchored to the centre of the view, not to any
+       particle's wandering flow position, so it always reads as a
+       commanding, in-place presence — with a small living bob — */
+    if(ignited){
+      seedWorld.set(
+        Math.sin(t*0.3)*0.16,
+        Math.cos(t*0.22)*0.11,
+        0.5
+      );
+    }
+
     for(let i=0;i<N;i++){
       const cp = chaosPos[i], fp = flowPos[i], ph = phase[i];
 
@@ -643,9 +821,48 @@
       const fz = fp.z;
 
       const mixT = scrollFrac;
-      const x = THREE.MathUtils.lerp(cp.x+jx, fx, mixT);
-      const y = THREE.MathUtils.lerp(cp.y+jy, fy, mixT);
-      const z = THREE.MathUtils.lerp(cp.z+jz, fz, mixT);
+      let x = THREE.MathUtils.lerp(cp.x+jx, fx, mixT);
+      let y = THREE.MathUtils.lerp(cp.y+jy, fy, mixT);
+      let z = THREE.MathUtils.lerp(cp.z+jz, fz, mixT);
+
+      let assimBlend = 0;
+      if(ignited && i!==seedIndex){
+        if(!exploding){
+          const a = assimilated[i];
+          if(a > 0.001){
+            const dx = x - seedWorld.x, dy = y - seedWorld.y;
+            const spiralAngle = a*a*8.0;
+            const cosA = Math.cos(spiralAngle), sinA = Math.sin(spiralAngle);
+            const rx = dx*cosA - dy*sinA;
+            const ry = dx*sinA + dy*cosA;
+            const shrink = 1 - a;
+            x = seedWorld.x + rx*shrink;
+            y = seedWorld.y + ry*shrink;
+            z = THREE.MathUtils.lerp(z, seedWorld.z, a);
+            assimBlend = a;
+          }
+        } else {
+          const e = explosionEnergy[i];
+          if(e > 0.001){
+            /* base position drifts from the seed's centre out to this particle's
+               normal resting spot over the course of the burst */
+            const returnBlend = Math.min(1, explodeElapsed/1.3);
+            const baseX = THREE.MathUtils.lerp(seedWorld.x, x, returnBlend);
+            const baseY = THREE.MathUtils.lerp(seedWorld.y, y, returnBlend);
+            const baseZ = THREE.MathUtils.lerp(seedWorld.z, z, returnBlend);
+            const dxn = x - seedWorld.x, dyn = y - seedWorld.y;
+            const angle = (Math.abs(dxn)+Math.abs(dyn) > 0.0001) ? Math.atan2(dyn,dxn) : ph*1.7;
+            const freq = 3.2 + Math.sin(ph)*0.6;
+            /* abs(sin) traces a bounce: 0 at start, out to a peak, back to 0, smaller peak... */
+            const envelope = e * Math.abs(Math.sin(freq*explodeElapsed)) * Math.exp(-2.0*explodeElapsed);
+            const radius = envelope * 3.2;
+            x = baseX + Math.cos(angle)*radius;
+            y = baseY + Math.sin(angle)*radius;
+            z = baseZ + explosionDir[i].z*radius*0.35;
+            assimBlend = Math.min(1, envelope*1.2);
+          }
+        }
+      }
 
       posAttr.array[i*3]   = x;
       posAttr.array[i*3+1] = y;
@@ -653,11 +870,66 @@
 
       const laneSplit = (i % 2 === 0);
       const targetCol = laneSplit ? amberCol : tealCol;
-      const c = stuckCol.clone().lerp(targetCol, mixT*0.85 + resolvePulse*0.15);
+      let c = stuckCol.clone().lerp(targetCol, mixT*0.85 + resolvePulse*0.15);
+      if(assimBlend > 0.001) c = c.clone().lerp(amberCol, assimBlend*0.9);
       colAttr.array[i*3]=c.r; colAttr.array[i*3+1]=c.g; colAttr.array[i*3+2]=c.b;
     }
     posAttr.needsUpdate = true;
     colAttr.needsUpdate = true;
+
+    /* — resonant black hole: breathing glow, glossy sphere, matter orbiting at speed — */
+    if(ignited){
+      let sumA = 0;
+      for(let i=0;i<N;i++) sumA += assimilated[i];
+      const fracA = sumA / (N-1);
+      const breathe = 1 + Math.sin(t*1.3)*0.05 + Math.sin(t*4.5)*0.05*fracA;
+      const burstFlash = exploding ? Math.max(0, 1 - explodeElapsed/0.5) : 0;
+      const fadeOut = exploding ? Math.max(0, 1 - explodeElapsed/1.6) : 1;
+
+      const glowScale = (0.5 + fracA*3.2 + burstFlash*2.2) * breathe;
+      const ringScale = (0.75 + fracA*4.4 + burstFlash*1.6) * breathe;
+      const sphereScale = (0.16 + fracA*0.62) * breathe;
+      const orbitScale = (0.55 + fracA*2.5) * breathe;
+
+      outerGlow.position.copy(seedWorld);
+      ringSprite.position.copy(seedWorld);
+      coreSphere.position.copy(seedWorld);
+
+      outerGlow.scale.set(glowScale, glowScale, 1);
+      ringSprite.scale.set(ringScale, ringScale*0.62, 1);
+      coreSphere.scale.setScalar(sphereScale);
+
+      outerGlow.material.opacity = Math.min(1, 0.12 + fracA*0.55 + burstFlash*0.5) * fadeOut;
+      ringSprite.material.opacity = Math.min(1, 0.25 + fracA*0.7 + burstFlash*0.6) * fadeOut;
+      coreSphere.material.opacity = Math.min(0.98, 0.1 + fracA*0.98) * fadeOut;
+
+      const lightPower = Math.min(1, fracA*1.3) * fadeOut;
+      horizonKeyLight.intensity = 2.4 * lightPower;
+      horizonRimLight.intensity = 1.6 * lightPower;
+      horizonAmbient.intensity = 0.35 * lightPower;
+
+      /* the horizon itself does not rotate — this is matter already in
+         orbit, swirling around it continuously at high speed */
+      const oPosAttr = orbitGeo.attributes.position;
+      for(let i=0;i<ORBIT_N;i++){
+        const ang = orbitBaseAngle[i] + t*orbitSpeedF[i];
+        const r = orbitRadiusF[i]*orbitScale;
+        oPosAttr.array[i*3]   = seedWorld.x + Math.cos(ang)*r;
+        oPosAttr.array[i*3+1] = seedWorld.y + Math.sin(ang)*r*0.55 + orbitTiltF[i]*orbitScale*0.3;
+        oPosAttr.array[i*3+2] = seedWorld.z + Math.sin(ang)*orbitTiltF[i]*orbitScale*0.5;
+      }
+      oPosAttr.needsUpdate = true;
+      orbitMat.opacity = Math.min(0.95, 0.3 + fracA*0.7 + burstFlash*0.4) * fadeOut;
+      orbitMat.size = (0.035 + fracA*0.045) * (1 + burstFlash*1.5);
+    } else {
+      outerGlow.material.opacity = 0;
+      ringSprite.material.opacity = 0;
+      coreSphere.material.opacity = 0;
+      orbitMat.opacity = 0;
+      horizonKeyLight.intensity = 0;
+      horizonRimLight.intensity = 0;
+      horizonAmbient.intensity = 0;
+    }
 
     mat.size = 0.075 + resolvePulse*0.04;
     camera.position.x = Math.sin(t*0.05)*0.6;
@@ -759,6 +1031,7 @@ function applySettings(){
   if(ct) ct.checked = contrast;
   document.querySelectorAll('#textsize-row button').forEach(b=>b.classList.toggle('active', b.dataset.size === textsize));
   if(typeof window._kmRecalcScroll === 'function') requestAnimationFrame(window._kmRecalcScroll);
+  if(typeof window._kmRecalcTheme === 'function') window._kmRecalcTheme();
 }
 function saveSettings(){ localStorage.setItem('km_settings', JSON.stringify(settings)); }
 function setTheme(t){ settings.theme = t; applySettings(); saveSettings(); }
