@@ -654,8 +654,76 @@
     tex.needsUpdate = true;
     return tex;
   }
+
+  /* accretion disk: baked white-hot -> amber -> deep-red temperature
+     gradient plus turbulent, cloud-like clumping — no asymmetry baked in,
+     since this texture rotates (it's matter in motion) */
+  function makeAccretionTexture(size){
+    size = size || 256;
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cx = size/2, cy = size/2, r = size/2;
+    const grad = ctx.createRadialGradient(cx,cy,r*0.34, cx,cy,r);
+    grad.addColorStop(0.00,'rgba(255,255,255,0)');
+    grad.addColorStop(0.30,'rgba(255,255,255,0)');
+    grad.addColorStop(0.40,'rgba(255,250,235,1)');
+    grad.addColorStop(0.52,'rgba(255,201,120,0.95)');
+    grad.addColorStop(0.68,'rgba(230,110,50,0.6)');
+    grad.addColorStop(0.86,'rgba(140,40,25,0.25)');
+    grad.addColorStop(1.00,'rgba(80,20,15,0)');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(cx,cy,r,0,Math.PI*2); ctx.fill();
+
+    ctx.globalCompositeOperation = 'source-atop';
+    for(let i=0;i<18;i++){
+      const ang = Math.random()*Math.PI*2;
+      const rad = r*(0.4+Math.random()*0.48);
+      const bx = cx+Math.cos(ang)*rad, by = cy+Math.sin(ang)*rad;
+      const br = r*(0.09+Math.random()*0.15);
+      const bg = ctx.createRadialGradient(bx,by,0,bx,by,br);
+      const alpha = 0.05+Math.random()*0.07;
+      const hot = Math.random()<0.5;
+      bg.addColorStop(0, hot ? `rgba(255,240,210,${alpha})` : `rgba(120,30,20,${alpha})`);
+      bg.addColorStop(1, hot ? 'rgba(255,240,210,0)' : 'rgba(120,30,20,0)');
+      ctx.fillStyle = bg;
+      ctx.beginPath(); ctx.arc(bx,by,br,0,Math.PI*2); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
+  /* Doppler beaming: one side of the disk is brighter because it's moving
+     toward the viewer. This is a property of viewing geometry, not of the
+     disk's turbulence, so it's a separate, non-rotating overlay. */
+  function makeDopplerTexture(size){
+    size = size || 160;
+    const c = document.createElement('canvas'); c.width = c.height = size;
+    const ctx = c.getContext('2d');
+    const cx = size/2, cy = size/2, r = size/2;
+    const donut = ctx.createRadialGradient(cx,cy,0,cx,cy,r);
+    donut.addColorStop(0,'rgba(255,255,255,0)');
+    donut.addColorStop(0.42,'rgba(255,255,255,0)');
+    donut.addColorStop(0.58,'rgba(255,255,255,1)');
+    donut.addColorStop(0.78,'rgba(255,255,255,0.3)');
+    donut.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = donut; ctx.fillRect(0,0,size,size);
+    ctx.globalCompositeOperation = 'source-atop';
+    const asym = ctx.createLinearGradient(0,0,size,0);
+    asym.addColorStop(0,'rgba(255,255,255,1)');
+    asym.addColorStop(0.5,'rgba(255,255,255,0.12)');
+    asym.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle = asym; ctx.fillRect(0,0,size,size);
+    ctx.globalCompositeOperation = 'source-over';
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    return tex;
+  }
+
   const blobTex = makeAlphaTexture('blob', 128);
-  const ringTex = makeAlphaTexture('ring', 160);
+  const accretionTex = makeAccretionTexture(256);
+  const dopplerTex = makeDopplerTexture(160);
 
   const outerGlow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: blobTex, color: 0xf5a623, transparent:true, opacity:0,
@@ -664,12 +732,35 @@
   outerGlow.renderOrder = 10;
   scene.add(outerGlow);
 
-  const ringSprite = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: ringTex, color: 0xf5a623, transparent:true, opacity:0, rotation:0,
+  /* fixed viewing-angle tilt — static, not animated. All three disk-plane
+     layers share it so they read as one coherent, still disk rather than
+     mismatched, spinning shapes. */
+  const DISK_TILT = -0.17;
+  const DISK_FLATTEN = 0.44;
+
+  /* halo: rounder-radius, dimmer, larger — the lensed light appearing to
+     wrap over the poles, approximated by layering rather than ray tracing.
+     Same flatten/tilt as the ring so it reads as the same disk. */
+  const haloRing = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: accretionTex, color: 0xffffff, transparent:true, opacity:0, rotation:DISK_TILT,
     blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
   }));
-  ringSprite.renderOrder = 11;
+  haloRing.renderOrder = 11;
+  scene.add(haloRing);
+
+  const ringSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: accretionTex, color: 0xffffff, transparent:true, opacity:0, rotation:DISK_TILT,
+    blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
+  }));
+  ringSprite.renderOrder = 12;
   scene.add(ringSprite);
+
+  const dopplerGlow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: dopplerTex, color: 0xffffff, transparent:true, opacity:0, rotation:DISK_TILT,
+    blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
+  }));
+  dopplerGlow.renderOrder = 13;
+  scene.add(dopplerGlow);
 
   const coreSphere = new THREE.Mesh(
     new THREE.SphereGeometry(1, 40, 40),
@@ -678,7 +769,10 @@
       transparent:true, opacity:0
     })
   );
-  coreSphere.renderOrder = 12;
+  /* drawn first — the glow/ring/halo layers (depthTest:false) always
+     render on top of it regardless, so its silhouette only shows through
+     wherever those layers are transparent (the "hole" in the middle) */
+  coreSphere.renderOrder = 5;
   scene.add(coreSphere);
 
   /* fast-orbiting matter — the horizon itself never rotates, but a ring of
@@ -691,7 +785,7 @@
     sizeAttenuation:true, blending:THREE.AdditiveBlending, depthWrite:false, depthTest:false
   });
   const orbitPoints = new THREE.Points(orbitGeo, orbitMat);
-  orbitPoints.renderOrder = 13;
+  orbitPoints.renderOrder = 14;
   scene.add(orbitPoints);
   const orbitBaseAngle = new Float32Array(ORBIT_N);
   const orbitRadiusF = new Float32Array(ORBIT_N);
@@ -716,9 +810,10 @@
     amberCol.set(amberHex);
     tealCol.set(tealHex);
     outerGlow.material.color.set(amberHex);
-    ringSprite.material.color.set(amberHex);
     orbitMat.color.set(amberHex);
     horizonRimLight.color.set(tealHex);
+    /* ringSprite / haloRing keep their baked white-hot->red temperature
+       colors regardless of theme — a black hole's disk isn't violet */
   }
   applyThemeColors();
   window._kmRecalcTheme = applyThemeColors;
@@ -877,7 +972,7 @@
     posAttr.needsUpdate = true;
     colAttr.needsUpdate = true;
 
-    /* — resonant black hole: breathing glow, glossy sphere, matter orbiting at speed — */
+    /* — resonant black hole: breathing glow, glossy sphere, lensed halo, matter orbiting at speed — */
     if(ignited){
       let sumA = 0;
       for(let i=0;i<N;i++) sumA += assimilated[i];
@@ -888,19 +983,28 @@
 
       const glowScale = (0.5 + fracA*3.2 + burstFlash*2.2) * breathe;
       const ringScale = (0.75 + fracA*4.4 + burstFlash*1.6) * breathe;
+      const haloScale = ringScale * 1.22;
       const sphereScale = (0.16 + fracA*0.62) * breathe;
       const orbitScale = (0.55 + fracA*2.5) * breathe;
 
       outerGlow.position.copy(seedWorld);
       ringSprite.position.copy(seedWorld);
+      haloRing.position.copy(seedWorld);
+      dopplerGlow.position.copy(seedWorld);
       coreSphere.position.copy(seedWorld);
 
       outerGlow.scale.set(glowScale, glowScale, 1);
-      ringSprite.scale.set(ringScale, ringScale*0.62, 1);
+      ringSprite.scale.set(ringScale, ringScale*DISK_FLATTEN, 1);
+      /* larger than the disk ring, same flatten/tilt — the far-side light
+         bent over the poles, standing in for true lensing */
+      haloRing.scale.set(haloScale, haloScale*DISK_FLATTEN, 1);
+      dopplerGlow.scale.set(ringScale, ringScale*DISK_FLATTEN, 1);
       coreSphere.scale.setScalar(sphereScale);
 
       outerGlow.material.opacity = Math.min(1, 0.12 + fracA*0.55 + burstFlash*0.5) * fadeOut;
-      ringSprite.material.opacity = Math.min(1, 0.25 + fracA*0.7 + burstFlash*0.6) * fadeOut;
+      ringSprite.material.opacity = Math.min(1, 0.32 + fracA*0.68 + burstFlash*0.6) * fadeOut;
+      haloRing.material.opacity = Math.min(0.7, 0.08 + fracA*0.32 + burstFlash*0.3) * fadeOut;
+      dopplerGlow.material.opacity = Math.min(0.8, 0.1 + fracA*0.5) * fadeOut;
       coreSphere.material.opacity = Math.min(0.98, 0.1 + fracA*0.98) * fadeOut;
 
       const lightPower = Math.min(1, fracA*1.3) * fadeOut;
@@ -908,8 +1012,10 @@
       horizonRimLight.intensity = 1.6 * lightPower;
       horizonAmbient.intensity = 0.35 * lightPower;
 
-      /* the horizon itself does not rotate — this is matter already in
-         orbit, swirling around it continuously at high speed */
+      /* the disk stays still — a fixed viewing-angle tilt (DISK_TILT),
+         set once at creation, no per-frame rotation. Only the individual
+         orbiting sparks below are in motion. */
+
       const oPosAttr = orbitGeo.attributes.position;
       for(let i=0;i<ORBIT_N;i++){
         const ang = orbitBaseAngle[i] + t*orbitSpeedF[i];
@@ -924,6 +1030,8 @@
     } else {
       outerGlow.material.opacity = 0;
       ringSprite.material.opacity = 0;
+      haloRing.material.opacity = 0;
+      dopplerGlow.material.opacity = 0;
       coreSphere.material.opacity = 0;
       orbitMat.opacity = 0;
       horizonKeyLight.intensity = 0;
