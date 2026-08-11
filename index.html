@@ -52,15 +52,17 @@
 
   #kmCanvas{position:fixed;inset:0;z-index:0;pointer-events:none;}
 
-  .top-nav{position:fixed;top:0;left:0;right:0;z-index:500;display:flex;justify-content:center;align-items:center;padding:16px 20px;background:rgba(11,14,20,0.82);backdrop-filter:blur(10px);border-bottom:1px solid rgba(245,166,35,0.1);}
+  .top-nav{position:fixed;top:0;left:0;right:0;z-index:500;display:flex;justify-content:center;align-items:center;padding:calc(16px + env(safe-area-inset-top,0px)) 20px 16px;background:rgba(11,14,20,0.82);backdrop-filter:blur(10px);border-bottom:1px solid rgba(245,166,35,0.1);}
   .nav-word{font-family:var(--display);font-weight:700;font-size:.95rem;color:var(--ink);letter-spacing:.5px;display:flex;align-items:center;gap:8px;}
   .nav-word .dot{width:7px;height:7px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber-glow);}
-  .settings-btn{position:absolute;right:16px;top:50%;transform:translateY(-50%);width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);font-size:1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+  .settings-btn{position:absolute;right:16px;top:calc(50% + env(safe-area-inset-top,0px)/2);transform:translateY(-50%);width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);font-size:1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
   .settings-btn:hover{border-color:var(--teal);color:var(--teal);}
+  .history-btn{position:absolute;right:58px;top:calc(50% + env(safe-area-inset-top,0px)/2);transform:translateY(-50%);width:34px;height:34px;border-radius:10px;border:1px solid var(--border);background:rgba(255,255,255,.03);color:var(--muted);font-size:1rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;}
+  .history-btn:hover{border-color:var(--amber);color:var(--amber);}
 
   .settings-overlay{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:900;opacity:0;pointer-events:none;transition:opacity .25s ease;}
   .settings-overlay.open{opacity:1;pointer-events:auto;}
-  .settings-drawer{position:fixed;top:0;right:0;bottom:0;width:min(340px,88vw);background:var(--bg2);border-left:1px solid var(--border);z-index:901;transform:translateX(100%);transition:transform .3s ease;padding:5.5rem 1.4rem 1.5rem;overflow-y:auto;}
+  .settings-drawer{position:fixed;top:0;right:0;bottom:0;width:min(340px,88vw);background:var(--bg2);border-left:1px solid var(--border);z-index:901;transform:translateX(100%);transition:transform .3s ease;padding:calc(5.5rem + env(safe-area-inset-top,0px)) 1.4rem calc(1.5rem + env(safe-area-inset-bottom,0px));overflow-y:auto;}
   .settings-overlay.open .settings-drawer{transform:translateX(0);}
   .settings-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:1.75rem;}
   .settings-title{font-family:var(--display);font-weight:700;font-size:1.05rem;color:var(--ink);}
@@ -84,8 +86,24 @@
   .textsize-row button.active{border-color:var(--amber);color:var(--amber);}
   .settings-reset{width:100%;background:transparent;border:1px solid var(--border);color:var(--muted);padding:.7rem;border-radius:10px;font-family:var(--mono);font-size:.6875rem;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
   .settings-reset:hover{border-color:var(--rose);color:var(--rose);}
+  .settings-danger{width:100%;background:transparent;border:1px solid rgba(226,84,74,.35);color:var(--rose);padding:.7rem;border-radius:10px;font-family:var(--mono);font-size:.6875rem;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+  .settings-danger:hover{background:rgba(226,84,74,.1);border-color:var(--rose);}
+  .settings-hint{font-size:.75rem;color:var(--muted);line-height:1.55;margin-top:.6rem;}
 
-  .progress-indicator{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);z-index:400;display:flex;flex-direction:column;align-items:center;gap:9px;opacity:0;pointer-events:none;transition:opacity .4s ease;}
+  .history-list{display:flex;flex-direction:column;gap:10px;}
+  .history-empty{font-size:.8125rem;color:var(--muted);line-height:1.6;text-align:center;padding:2rem 0;}
+  .history-item{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:.9rem 1rem;}
+  .history-date{font-family:var(--mono);font-size:.625rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:.4rem;}
+  .history-title{font-family:var(--display);font-weight:700;font-size:.875rem;color:var(--ink);margin-bottom:.75rem;line-height:1.4;}
+  .history-actions{display:flex;gap:8px;}
+  .history-view,.history-delete{flex:1;padding:.55rem 0;border-radius:8px;font-family:var(--mono);font-size:.6875rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+  .history-view{background:var(--teal);color:#0b0e14;border:none;font-weight:700;}
+  .history-view:hover{box-shadow:0 0 14px var(--teal-glow);}
+  .history-delete{background:transparent;border:1px solid rgba(226,84,74,.35);color:var(--rose);}
+  .history-delete:hover{background:rgba(226,84,74,.1);}
+  .history-delete.confirming{background:var(--rose);color:#2a0d0a;border-color:var(--rose);font-weight:700;}
+
+  .progress-indicator{position:fixed;bottom:calc(22px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%);z-index:400;display:flex;flex-direction:column;align-items:center;gap:9px;opacity:0;pointer-events:none;transition:opacity .4s ease;}
   .progress-indicator.show{opacity:1;}
   .progress-dots{display:flex;gap:7px;}
   .pdot{width:7px;height:7px;border-radius:50%;background:rgba(255,255,255,.16);transition:all .3s ease;}
@@ -93,7 +111,7 @@
   .pdot.done{background:var(--teal);}
   .progress-label{font-family:var(--mono);font-size:.6875rem;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);}
 
-  .panel{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:90px 1.25rem 4rem;overflow:hidden;}
+  .panel{position:relative;z-index:2;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(90px + env(safe-area-inset-top,0px)) 1.25rem 4rem;overflow:hidden;}
   .panel-overlay{position:absolute;inset:0;pointer-events:none;z-index:0;opacity:0;transition:opacity 1.1s ease;}
   .panel.active .panel-overlay{opacity:1;}
   .panel-hero  .panel-overlay{background:radial-gradient(ellipse 60% 50% at 50% 45%,rgba(107,114,128,0.08),transparent 70%);}
@@ -260,6 +278,7 @@
 
 <nav class="top-nav">
   <div class="nav-word"><span class="dot"></span>Keep Moving</div>
+  <button class="history-btn" id="history-btn" onclick="toggleHistory()" aria-label="Saved runs">🕐</button>
   <button class="settings-btn" id="settings-btn" onclick="toggleSettings()" aria-label="Display settings">⚙</button>
 </nav>
 
@@ -293,6 +312,21 @@
       </div>
     </div>
     <button class="settings-reset" onclick="resetSettings()">Reset to defaults</button>
+    <div class="settings-group" style="margin-top:1.75rem;">
+      <div class="settings-label">Data</div>
+      <button class="settings-danger" id="clear-key-btn" onclick="clearApiKey()">Clear saved API key</button>
+      <div class="settings-hint">Your key is only stored in this browser. Clearing it means you'll need to paste it again next time.</div>
+    </div>
+  </div>
+</div>
+
+<div class="settings-overlay" id="history-overlay" onclick="closeHistoryOnOverlay(event)">
+  <div class="settings-drawer" id="history-drawer" onclick="event.stopPropagation()">
+    <div class="settings-header">
+      <div class="settings-title">Saved runs</div>
+      <button class="settings-close" onclick="toggleHistory(false)" aria-label="Close saved runs">✕</button>
+    </div>
+    <div class="history-list" id="history-list"></div>
   </div>
 </div>
 
@@ -511,6 +545,7 @@
       <button class="exp-btn" onclick="copyText(this)">Copy full analysis</button>
       <button class="exp-btn" onclick="downloadTxt()">Download .txt</button>
       <button class="exp-btn" onclick="copySnippet(this)">Copy shareable snippet</button>
+      <button class="exp-btn" id="save-run-btn" onclick="saveCurrentRun(this)">Save this run</button>
     </div>
     <button class="restart-btn rv rv4" onclick="restart()">← Start over</button>
   </div>
@@ -1154,6 +1189,106 @@ function toggleSettings(force){
 function closeSettingsOnOverlay(e){ if(e.target.id === 'settings-overlay') toggleSettings(false); }
 applySettings();
 
+/* ═══ SAVED RUNS (history) ═══ */
+const HISTORY_KEY = 'km_saved_runs';
+let pendingDeleteId = null;
+
+function getSavedRuns(){
+  try{ return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  catch(e){ return []; }
+}
+function setSavedRuns(list){
+  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); }catch(e){}
+}
+
+function saveCurrentRun(btn){
+  if(!lastResult){ return; }
+  const runs = getSavedRuns();
+  runs.unshift({
+    id: Date.now() + '-' + Math.floor(Math.random()*1000),
+    savedAt: new Date().toISOString(),
+    situation: lastResult.situation,
+    tried: lastResult.tried,
+    duration: lastResult.duration,
+    urgency: lastResult.urgency,
+    result: lastResult.result
+  });
+  setSavedRuns(runs);
+  if(btn){
+    const original = btn.textContent;
+    btn.textContent = 'Saved!';
+    btn.classList.add('copied');
+    setTimeout(()=>{ btn.textContent = original; btn.classList.remove('copied'); }, 2000);
+  }
+}
+
+function formatSavedDate(iso){
+  try{
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, {month:'short', day:'numeric'}) + ' · ' + d.toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit'});
+  }catch(e){ return ''; }
+}
+
+function renderHistoryList(){
+  const runs = getSavedRuns();
+  const el = document.getElementById('history-list');
+  pendingDeleteId = null;
+  if(!runs.length){
+    el.innerHTML = '<div class="history-empty">No saved runs yet. Finish an analysis and tap "Save this run" to keep it here.</div>';
+    return;
+  }
+  el.innerHTML = runs.map(run => `
+    <div class="history-item">
+      <div class="history-date">${esc(formatSavedDate(run.savedAt))}</div>
+      <div class="history-title">${esc(run.result && run.result.asis_title ? run.result.asis_title : 'Saved analysis')}</div>
+      <div class="history-actions">
+        <button class="history-view" onclick="viewSavedRun('${run.id}')">View</button>
+        <button class="history-delete" id="del-${run.id}" onclick="deleteSavedRun('${run.id}')">Delete</button>
+      </div>
+    </div>`).join('');
+}
+
+function viewSavedRun(id){
+  const runs = getSavedRuns();
+  const run = runs.find(r => r.id === id);
+  if(!run) return;
+  lastResult = { result: run.result, situation: run.situation, tried: run.tried, duration: run.duration, urgency: run.urgency };
+  renderResults(run.result);
+  toggleHistory(false);
+  if(typeof window._kmTriggerResolve === 'function') window._kmTriggerResolve();
+  document.getElementById('panel-r-asis').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function deleteSavedRun(id){
+  const btn = document.getElementById('del-' + id);
+  if(!btn) return;
+  if(pendingDeleteId !== id){
+    pendingDeleteId = id;
+    btn.textContent = 'Confirm?';
+    btn.classList.add('confirming');
+    setTimeout(()=>{
+      if(pendingDeleteId === id){
+        pendingDeleteId = null;
+        btn.textContent = 'Delete';
+        btn.classList.remove('confirming');
+      }
+    }, 3000);
+    return;
+  }
+  pendingDeleteId = null;
+  const runs = getSavedRuns().filter(r => r.id !== id);
+  setSavedRuns(runs);
+  renderHistoryList();
+}
+
+function toggleHistory(force){
+  const overlay = document.getElementById('history-overlay');
+  const show = force !== undefined ? force : !overlay.classList.contains('open');
+  overlay.classList.toggle('open', show);
+  if(show) renderHistoryList();
+}
+function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleHistory(false); }
+
 /* ═══ PWA — SERVICE WORKER + INSTALL ═══ */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
@@ -1206,6 +1341,15 @@ function saveKey() {
   apiKey = val;
   localStorage.setItem('km_gemini_key', apiKey);
   showKeyStatus("Key saved. You're good to go.", true);
+}
+
+function clearApiKey() {
+  apiKey = '';
+  localStorage.removeItem('km_gemini_key');
+  document.getElementById('api-key-input').value = '';
+  showKeyStatus('API key cleared from this browser.', true);
+  toggleSettings(false);
+  document.getElementById('panel-hero').scrollIntoView({behavior:'smooth'});
 }
 
 function showKeyStatus(msg, ok) {
