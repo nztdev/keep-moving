@@ -317,6 +317,10 @@
       <button class="settings-danger" id="clear-key-btn" onclick="clearApiKey()">Clear saved API key</button>
       <div class="settings-hint">Your key is only stored in this browser. Clearing it means you'll need to paste it again next time.</div>
     </div>
+    <div class="settings-group">
+      <button class="settings-danger" id="clear-cache-btn" onclick="clearCacheAndRefresh(this)">Clear cache &amp; refresh</button>
+      <div class="settings-hint">Forces the app to reload the latest version. Doesn't touch your API key, saved runs, or these settings.</div>
+    </div>
   </div>
 </div>
 
@@ -1350,6 +1354,25 @@ function clearApiKey() {
   showKeyStatus('API key cleared from this browser.', true);
   toggleSettings(false);
   document.getElementById('panel-hero').scrollIntoView({behavior:'smooth'});
+}
+
+async function clearCacheAndRefresh(btn) {
+  if(btn){ btn.disabled = true; btn.textContent = 'Clearing…'; }
+  try{
+    if('caches' in window){
+      const keys = await caches.keys();
+      await Promise.all(keys.map(k => caches.delete(k)));
+    }
+    if('serviceWorker' in navigator){
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map(r => r.unregister()));
+    }
+  }catch(e){
+    console.error('[keep-moving] cache clear failed', e);
+  }
+  /* localStorage (API key, saved runs, display settings) is untouched —
+     this only clears the service worker's cached app shell/assets */
+  setTimeout(()=>{ window.location.reload(); }, 250);
 }
 
 function showKeyStatus(msg, ok) {
