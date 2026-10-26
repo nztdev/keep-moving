@@ -61,8 +61,8 @@ const use=!PREVIEW&&sv.seed===seed, seedB=seed*0.37;
 
 /* ── renderer: low-res buffer scaled up = the pixel look ── */
 const R=new THREE.WebGLRenderer({canvas:$('c'),antialias:false});
-const PX=PREVIEW?6:innerWidth<700?3:4;
-const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,1,.5,2500);cam.rotation.order='YXZ';
+const PX=PREVIEW?Math.max(2,Math.round(innerWidth/200)):innerWidth<700?3:4;
+const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(PREVIEW?80:70,1,.5,2500);cam.rotation.order='YXZ';
 function fit(){R.setPixelRatio(1);R.setSize(Math.ceil(innerWidth/PX),Math.ceil(innerHeight/PX),false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
 addEventListener('resize',fit);fit();
 
@@ -96,6 +96,13 @@ const biome=(x,z)=>.5+.5*Math.sin(x*.004+seedB)*Math.cos(z*.0033);
 /* ── sky cycle: dawn → day → dusk → night ── */
 const K=['#e8935a','#7fd4cf','#c8643c','#070a12'].map(c=>new THREE.Color(c)),sky=new THREE.Color();
 function skyAt(t){const f=t*4,i=Math.floor(f)%4;sky.copy(K[i]).lerp(K[(i+1)%4],f-Math.floor(f));return .5+.5*Math.sin(t*Math.PI*2)}
+
+/* ── sky dome: horizon haze fading to a deeper zenith, with a low sun that glows at golden hour ── */
+const SU={uH:{value:sky},uSun:{value:new THREE.Vector3(.5,.1,-.85)},uL:{value:1}};
+const dome=new THREE.Mesh(new THREE.SphereGeometry(1800,24,16),new THREE.ShaderMaterial({uniforms:SU,side:THREE.BackSide,depthWrite:false,depthTest:false,
+vertexShader:'varying vec3 vD;void main(){vD=position;gl_Position=projectionMatrix*viewMatrix*modelMatrix*vec4(position,1.);}',
+fragmentShader:'uniform vec3 uH,uSun;uniform float uL;varying vec3 vD;void main(){vec3 d=normalize(vD);float up=max(d.y,0.);vec3 z=uH*.28+vec3(.01,.03,.09)*(.4+uL);vec3 c=mix(uH,z,pow(up,.45));float s=max(dot(d,normalize(uSun)),0.),v=smoothstep(-.15,.12,uSun.y);c+=vec3(1.,.6,.28)*(pow(s,6.)*.35+pow(s,120.)*.9+pow(s,900.)*2.5)*v*(1.-up*.5);gl_FragColor=vec4(c,1.);}'}));
+dome.renderOrder=-10;dome.frustumCulled=false;sc.add(dome);
 
 /* ── soft textures (no hard squares) ── */
 function tex(draw,s){const c=document.createElement('canvas');c.width=c.height=s;const x=c.getContext('2d');draw(x,s);return new THREE.CanvasTexture(c)}
@@ -189,24 +196,30 @@ setInterval(()=>{if(PREVIEW)return;localStorage.setItem('km_world',JSON.stringif
 
 let last=performance.now(),au=0,camY=30,pvT=.03,nextV=PREVIEW?0:Infinity,vl=[],vi=0;
 /* preview: find elevated spots that look out toward high peaks or open sea, then glide through them at golden hour */
-function buildVistas(){const c=[];for(let i=0;i<320;i++){const a=i*2.4,r=82*Math.sqrt(i),x=Math.cos(a)*r,z=Math.sin(a)*r,h=hJ(x,z);if(h<8||h>50)continue;let bs=0,by=0;
- for(let k=0;k<12;k++){const y=k/12*6.283,dx=-Math.sin(y),dz=-Math.cos(y);let pk=0,sea=0;for(let d=70;d<=420;d+=70){const hh=hJ(x+dx*d,z+dz*d);if(hh>pk)pk=hh;if(hh<-2)sea=1}const sc=pk+sea*55;if(sc>bs){bs=sc;by=y}}
- c.push({x,z,yaw:by,s:bs,t:[.02,.05,.44,.47][i%4]})}
- c.sort((a,b)=>b.s-a.s);const out=[];for(const v of c){if(out.every(o=>Math.hypot(o.x-v.x,o.z-v.z)>350))out.push(v);if(out.length>=7)break}
- vl=out.length?out:[{x:px,z:pz,yaw:0,s:0,t:.05}]}
-function nextVista(){if(!vl.length)buildVistas();const v=vl[vi++%vl.length],f=$('fade');f.style.opacity=1;nextV=T+11.5;
- setTimeout(()=>{px=v.x;pz=v.z;yaw=v.yaw;pitch=-.02;pvT=v.t;camY=hJ(px,pz)+9;f.style.opacity=0},500)}
+function buildVistas(){const c=[];
+ for(let i=0;i<260;i++){const a=i*2.4,r=95*Math.sqrt(i),x=Math.cos(a)*r,z=Math.sin(a)*r,h=hJ(x,z);if(h<14||h>60)continue;
+  let near=0;for(let k=0;k<6;k++)near+=hJ(x+Math.cos(k)*90,z+Math.sin(k)*90);const drop=Math.max(0,h-near/6);
+  let bs=0,by=0;for(let k=0;k<12;k++){const y=k/12*6.283;let mx=-99,mn=99,sea=0,snow=0;
+   for(let d=110;d<=530;d+=105)for(let l=-.4;l<=.41;l+=.4){const yy=y+l,hh=hJ(x-Math.sin(yy)*d,z-Math.cos(yy)*d);mx=Math.max(mx,hh);mn=Math.min(mn,hh);if(hh<-2)sea++;if(hh>78)snow++}
+   const sc=mx+(mx-mn)*.5+(sea>2?45:0)+(sea>9?-25:0)+Math.min(snow,4)*14+drop*1.2;if(sc>bs){bs=sc;by=y}}
+  c.push({x,z,yaw:by,s:bs,p:-.06,t:[.02,.05,.44,.47][i%4]})}
+ c.sort((a,b)=>b.s-a.s);const out=[];for(const v of c){if(out.every(o=>Math.hypot(o.x-v.x,o.z-v.z)>420))out.push(v);if(out.length>=6)break}
+ const B=bh.position;let nb=null,nd=1e9;for(const v of c){const d=Math.hypot(B.x-v.x,B.z-v.z);if(d<nd&&d>250){nd=d;nb=v}}
+ if(nb)out.splice(2,0,{x:nb.x,z:nb.z,yaw:Math.atan2(-(B.x-nb.x),-(B.z-nb.z)),s:0,p:.2,t:.03});
+ vl=out.length?out:[{x:px,z:pz,yaw:0,s:0,p:-.06,t:.05}]}
+function nextVista(){if(!vl.length)buildVistas();const v=vl[vi++%vl.length],f=$('fade');f.style.opacity=1;nextV=T+12.5;
+ setTimeout(()=>{px=v.x;pz=v.z;yaw=v.yaw;pitch=v.p;pvT=v.t;camY=hJ(px,pz)+18;f.style.opacity=0},500)}
 function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;if(PREVIEW){if(T>=nextV)nextVista();yaw+=Math.sin(T*.25)*.03*dt}
- const turn=(keys.arrowleft||keys.a?1:0)-(keys.arrowright||keys.d?1:0);yaw+=turn*1.2*dt;if(!drag)pitch*=1-Math.min(1,dt*1.5);
+ const turn=(keys.arrowleft||keys.a?1:0)-(keys.arrowright||keys.d?1:0);yaw+=turn*1.2*dt;if(!drag&&!PREVIEW)pitch*=1-Math.min(1,dt*1.5);
  mom=clamp(mom+(resting?-.3:.05)*dt,.2,1);
- const tgt=PREVIEW?9:!started?3:resting?0:14*(.6+.8*mom)*(reduce?.6:1);sp+=(tgt-sp)*Math.min(1,dt*1.5);
+ const tgt=PREVIEW?6:!started?3:resting?0:14*(.6+.8*mom)*(reduce?.6:1);sp+=(tgt-sp)*Math.min(1,dt*1.5);
  px-=Math.sin(yaw)*sp*dt;pz-=Math.cos(yaw)*sp*dt;
- const light=skyAt(PREVIEW?pvT:(tod0+T/200)%1);U.uL.value=light;U.uTm.value=T;U.uSky.value.copy(sky);sc.background=sky;
+ const tt=PREVIEW?pvT:(tod0+T/200)%1,light=skyAt(tt);U.uL.value=light;U.uTm.value=T;U.uSky.value.copy(sky);sc.background=sky;
  const st=900/220;U.uC.value.set(Math.round(px/st)*st,Math.round(pz/st)*st);U.uP.value.set(px,pz);
- const sx=Math.sin(yaw),cz=Math.cos(yaw),hg=Math.max(0,hJ(px,pz),hJ(px-sx*14,pz-cz*14),hJ(px-sx*30,pz-cz*30)*.8)+9;camY+=(hg-camY)*Math.min(1,dt*(hg>camY?4:1.2));camY=Math.max(camY,hJ(px,pz)+4);cam.position.set(px,camY+(reduce?0:Math.sin(T*.8)*.35),pz);cam.rotation.set(pitch-.05,yaw,0);
+ const sx=Math.sin(yaw),cz=Math.cos(yaw),hg=Math.max(0,hJ(px,pz),hJ(px-sx*14,pz-cz*14),hJ(px-sx*30,pz-cz*30)*.8)+(PREVIEW?18:9);camY+=(hg-camY)*Math.min(1,dt*(hg>camY?4:1.2));camY=Math.max(camY,hJ(px,pz)+4);cam.position.set(px,camY+(reduce?0:Math.sin(T*.8)*.35),pz);cam.rotation.set(pitch-.05,yaw,0);
  for(let i=0;i<FN;i++){const j=i*3;fp[j]=px+(((fb[j]-px)%60)+60)%60-30;fp[j+1]=camY-8+fb[j+1]+Math.sin(T+i)*.4;fp[j+2]=pz+(((fb[j+2]-pz)%60)+60)%60-30}
  fg.attributes.position.needsUpdate=true;fm.opacity=.35+.65*(1-light);
- R.render(sc,cam);
+ dome.position.copy(cam.position);SU.uSun.value.set(.5,Math.sin(tt*Math.PI*2)*.9,-.85);SU.uL.value=light;R.render(sc,cam);
  au+=dt;if(au>.3){au=0;audioUpdate(biome(px,pz),light,clamp(sp/20,0,1))}}
 requestAnimationFrame(frame);
 </script></body></html>
