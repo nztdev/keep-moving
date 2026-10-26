@@ -262,6 +262,18 @@
   .native-card h3{font-family:var(--display);font-weight:700;font-size:.9375rem;color:var(--teal);letter-spacing:.3px;margin-bottom:.75rem;}
   .native-card p{font-size:.875rem;color:var(--muted);font-weight:500;line-height:1.7;margin-bottom:.75rem;}
 
+    .world-wrap{position:relative;z-index:2;width:100%;max-width:640px;text-align:left}
+  .world-h{font-family:var(--display);font-weight:700;font-size:clamp(1.5rem,5vw,2.1rem);line-height:1.2;letter-spacing:-.5px;margin-bottom:.6rem}
+  .world-p{font-size:.9375rem;line-height:1.7;color:var(--muted);margin-bottom:1.25rem;max-width:56ch}
+  .world-card{position:relative;aspect-ratio:16/10;border-radius:18px;overflow:hidden;border:1px solid var(--border2);background:linear-gradient(160deg,#10222b,#2a1c10);margin-bottom:1.5rem}
+  .world-card iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none;image-rendering:pixelated}
+  .world-open{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;gap:.2rem;padding:1rem 1.1rem;text-decoration:none;color:var(--ink);background:linear-gradient(to top,rgba(7,10,18,.72),rgba(7,10,18,0) 55%)}
+  .world-open:focus-visible{outline:2px solid var(--amber);outline-offset:-4px}
+  .world-open:hover .world-name,.world-open:focus-visible .world-name{color:var(--amber)}
+  .world-tag{font-size:.8125rem;color:var(--muted)}
+  .world-name{font-family:var(--display);font-weight:700;font-size:1.25rem;transition:color .2s}
+  .world-q p{font-size:.9375rem;line-height:1.6;margin-bottom:.8rem}
+  .world-q .chips{justify-content:flex-start;margin-bottom:1rem}
   footer{position:relative;z-index:2;padding:1.5rem 1.25rem 3rem;font-family:var(--mono);font-size:.6875rem;letter-spacing:.12em;text-transform:uppercase;color:#4a5262;display:flex;justify-content:center;gap:1rem;flex-wrap:wrap;}
 
   @media(max-width:480px){
@@ -552,6 +564,27 @@
       <button class="exp-btn" id="save-run-btn" onclick="saveCurrentRun(this)">Save this run</button>
     </div>
     <button class="restart-btn rv rv4" onclick="restart()">← Start over</button>
+  </div>
+</section>
+
+<section class="panel panel-world" id="panel-world">
+  <div class="world-wrap">
+    <h2 class="world-h">A world to keep moving through</h2>
+    <p class="world-p">Name to be decided. For now it's an open world you glide through with no goal: mountains, seas, a distant black hole, and your own music if you want it.</p>
+    <div class="world-card">
+      <iframe id="world-frame" title="Moving preview of the world" tabindex="-1" aria-hidden="true"></iframe>
+      <a class="world-open" href="world.html" aria-label="Open the world. Name to be decided."><span class="world-tag">Live preview, tap to enter</span><span class="world-name">Untitled world</span></a>
+    </div>
+    <div class="world-q">
+      <p>Is it just a place to admire the views, or something more? Pick what you'd want from it:</p>
+      <div class="chips" id="purpose-chips">
+        <div class="chip" data-v="Admiring views">Admiring views</div>
+        <div class="chip" data-v="A calm place to reflect">A calm place to reflect</div>
+        <div class="chip" data-v="A shared world with friends">A shared world with friends</div>
+        <div class="chip" data-v="Something with goals">Something with goals</div>
+      </div>
+      <button class="exp-btn" id="purpose-copy">Copy my answer</button>
+    </div>
   </div>
 </section>
 
@@ -1292,6 +1325,21 @@ function toggleHistory(force){
   if(show) renderHistoryList();
 }
 function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleHistory(false); }
+
+/* ═══ WORLD PREVIEW — loads only while on screen, skipped for reduced motion ═══ */
+(function(){
+  const fr=document.getElementById('world-frame'),sec=document.getElementById('panel-world');
+  const still=matchMedia('(prefers-reduced-motion:reduce)').matches;let on=false;
+  new IntersectionObserver(es=>es.forEach(e=>{
+    if(still)return;
+    if(e.isIntersecting&&!on){fr.src='world.html?preview=1';on=true;}
+    else if(!e.isIntersecting&&on){fr.src='about:blank';on=false;}
+  }),{threshold:.2}).observe(sec);
+  const K='km_world_purpose',chips=[...document.querySelectorAll('#purpose-chips .chip')],cur=localStorage.getItem(K);
+  chips.forEach(c=>{if(c.dataset.v===cur)c.classList.add('on');c.onclick=()=>{chips.forEach(x=>x.classList.remove('on'));c.classList.add('on');localStorage.setItem(K,c.dataset.v);};});
+  const cb=document.getElementById('purpose-copy');
+  cb.onclick=()=>{const v=localStorage.getItem(K);if(!v)return;navigator.clipboard.writeText('Keep Moving world: I would use it for '+v).then(()=>{cb.textContent='Copied';setTimeout(()=>cb.textContent='Copy my answer',1800);});};
+})();
 
 /* ═══ PWA — SERVICE WORKER + INSTALL ═══ */
 if('serviceWorker' in navigator){
