@@ -262,7 +262,17 @@
   .native-card h3{font-family:var(--display);font-weight:700;font-size:.9375rem;color:var(--teal);letter-spacing:.3px;margin-bottom:.75rem;}
   .native-card p{font-size:.875rem;color:var(--muted);font-weight:500;line-height:1.7;margin-bottom:.75rem;}
 
-    .world-wrap{position:relative;z-index:2;width:100%;max-width:640px;text-align:left}
+    .wm{position:fixed;left:14px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:450}
+  .wm-btn{min-height:44px;padding:0 16px 0 12px;border-radius:22px;border:1px solid var(--border2);background:rgba(11,14,20,.7);backdrop-filter:blur(8px);color:var(--ink);font-family:var(--display);font-weight:700;font-size:.8125rem;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .wm-btn:hover,.wm-btn:focus-visible{border-color:var(--amber);outline:none}
+  .wm-btn i{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber-glow)}
+  .wm-card{display:none;position:relative;width:min(280px,76vw);aspect-ratio:16/10;border-radius:16px;overflow:hidden;border:1px solid var(--border2);background:linear-gradient(160deg,#10222b,#2a1c10);box-shadow:0 10px 30px rgba(0,0,0,.5)}
+  .wm.open .wm-btn{display:none}
+  .wm.open .wm-card{display:block;animation:wmIn .25s ease}
+  @keyframes wmIn{from{opacity:0;transform:scale(.85);transform-origin:bottom left}to{opacity:1;transform:none}}
+  @media (prefers-reduced-motion:reduce){.wm.open .wm-card{animation:none}}
+  .wm-card iframe{position:absolute;inset:0;width:100%;height:100%;border:0;pointer-events:none}
+  .world-wrap{position:relative;z-index:2;width:100%;max-width:640px;text-align:left}
   .world-h{font-family:var(--display);font-weight:700;font-size:clamp(1.5rem,5vw,2.1rem);line-height:1.2;letter-spacing:-.5px;margin-bottom:.6rem}
   .world-p{font-size:.9375rem;line-height:1.7;color:var(--muted);margin-bottom:1.25rem;max-width:56ch}
   .world-card{position:relative;aspect-ratio:16/10;border-radius:18px;overflow:hidden;border:1px solid var(--border2);background:linear-gradient(160deg,#10222b,#2a1c10);margin-bottom:1.5rem}
@@ -343,6 +353,14 @@
       <button class="settings-close" onclick="toggleHistory(false)" aria-label="Close saved runs">✕</button>
     </div>
     <div class="history-list" id="history-list"></div>
+  </div>
+</div>
+
+<div class="wm" id="wm">
+  <button class="wm-btn" id="wm-btn" aria-expanded="false" aria-controls="wm-card"><i></i>World</button>
+  <div class="wm-card" id="wm-card">
+    <iframe id="wm-frame" title="Moving preview of the world" tabindex="-1" aria-hidden="true"></iframe>
+    <a class="world-open" href="world.html" aria-label="Enter the world. Name to be decided."><span class="world-tag">Tap to enter</span><span class="world-name">Untitled world</span></a>
   </div>
 </div>
 
@@ -1331,6 +1349,7 @@ function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleH
   const fr=document.getElementById('world-frame'),sec=document.getElementById('panel-world');
   const still=matchMedia('(prefers-reduced-motion:reduce)').matches;let on=false;
   new IntersectionObserver(es=>es.forEach(e=>{
+    if(window._wmHide)window._wmHide(e.isIntersecting);
     if(still)return;
     if(e.isIntersecting&&!on){fr.src='world.html?preview=1';on=true;}
     else if(!e.isIntersecting&&on){fr.src='about:blank';on=false;}
@@ -1339,6 +1358,16 @@ function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleH
   chips.forEach(c=>{if(c.dataset.v===cur)c.classList.add('on');c.onclick=()=>{chips.forEach(x=>x.classList.remove('on'));c.classList.add('on');localStorage.setItem(K,c.dataset.v);};});
   const cb=document.getElementById('purpose-copy');
   cb.onclick=()=>{const v=localStorage.getItem(K);if(!v)return;navigator.clipboard.writeText('Keep Moving world: I would use it for '+v).then(()=>{cb.textContent='Copied';setTimeout(()=>cb.textContent='Copy my answer',1800);});};
+})();
+
+/* ═══ MINI WORLD BUTTON — expands to a live preview, taps outside retract it, tapping the card enters ═══ */
+(function(){
+  const wm=document.getElementById('wm'),btn=document.getElementById('wm-btn'),fr=document.getElementById('wm-frame'),still=matchMedia('(prefers-reduced-motion:reduce)').matches;
+  function open(o){wm.classList.toggle('open',o);btn.setAttribute('aria-expanded',o);if(!still)fr.src=o?'world.html?preview=1':'about:blank';}
+  btn.onclick=e=>{e.stopPropagation();open(true);};
+  document.addEventListener('click',e=>{if(wm.classList.contains('open')&&!wm.contains(e.target))open(false);});
+  addEventListener('keydown',e=>{if(e.key==='Escape')open(false);});
+  window._wmHide=h=>{wm.style.display=h?'none':'';if(h)open(false);};
 })();
 
 /* ═══ PWA — SERVICE WORKER + INSTALL ═══ */
