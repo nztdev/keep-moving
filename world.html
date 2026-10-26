@@ -51,12 +51,13 @@ body.on #start{opacity:0;pointer-events:none}
 <div id="hint"></div><div id="fade"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
+const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const $=id=>document.getElementById(id),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
-let sv={};try{sv=JSON.parse(localStorage.getItem('km_world')||'{}')}catch(e){}
+let sv={};try{sv=JSON.parse(LS.get('km_world')||'{}')}catch(e){}
 const qs=new URLSearchParams(location.search);
 const seed=parseInt(qs.get('seed'))||sv.seed||4821;
-const PREVIEW=qs.get('preview')==='1';if(PREVIEW)document.body.classList.add('pv');
+const PREVIEW=qs.get('preview')==='1',CALM=PREVIEW&&qs.get('calm')==='1';if(PREVIEW)document.body.classList.add('pv');
 const use=!PREVIEW&&sv.seed===seed, seedB=seed*0.37;
 
 /* ── renderer: low-res buffer scaled up = the pixel look ── */
@@ -124,7 +125,7 @@ sc.add(bh);
 
 /* ── audio: warm generative world (drifting pads, slow chord changes, soft mallet phrases, reverb) + optional own music ── */
 let AC,master,wGain,pitched,texB,mus,verbIn,padG,lp,windF,windG,mEl,mSrc,mode='both',mOn=false,root=110,scale='min',chord=0,pads=[],lights=.5,deg=7;
-let muted=localStorage.getItem('km_mute')==='1',wvol=parseFloat(localStorage.getItem('km_wvol')||'.8');
+let muted=LS.get('km_mute')==='1',wvol=parseFloat(LS.get('km_wvol')||'.8');
 const SCL={min:[0,2,3,5,7,8,10],maj:[0,2,4,6,7,9,11]},PRG={min:[0,-4,3,-2],maj:[0,2,-5,-3]},mtof=(r,s)=>r*Math.pow(2,s/12);
 function audioInit(){
  AC=new(window.AudioContext||window.webkitAudioContext)();
@@ -169,9 +170,9 @@ function audioUpdate(b,light,v){if(!AC)return;const t=AC.currentTime,ns=b>.5?'ma
 function applyMix(){if(!AC)return;const t=AC.currentTime,own=mOn&&mode!=='world';
  pitched.gain.setTargetAtTime(own?0:1,t,.8);texB.gain.setTargetAtTime(mOn&&mode==='music'?.25:1,t,.8);mus.gain.setTargetAtTime(own?1:0,t,.5);
  if(mEl){if(mode==='world')mEl.pause();else if(mOn)mEl.play().catch(()=>{})}}
-function setMute(m){muted=m;localStorage.setItem('km_mute',m?'1':'0');$('mute').setAttribute('aria-pressed',m);$('mute').textContent=m?'Unmute':'Mute';if(master)master.gain.setTargetAtTime(m?0:.9,AC.currentTime,.15)}
+function setMute(m){muted=m;LS.set('km_mute',m?'1':'0');$('mute').setAttribute('aria-pressed',m);$('mute').textContent=m?'Unmute':'Mute';if(master)master.gain.setTargetAtTime(m?0:.9,AC.currentTime,.15)}
 $('mute').onclick=()=>setMute(!muted);setMute(muted);
-$('wv').value=wvol;$('wv').oninput=e=>{wvol=parseFloat(e.target.value);localStorage.setItem('km_wvol',wvol);if(wGain)wGain.gain.setTargetAtTime(wvol,AC.currentTime,.1)};
+$('wv').value=wvol;$('wv').oninput=e=>{wvol=parseFloat(e.target.value);LS.set('km_wvol',wvol);if(wGain)wGain.gain.setTargetAtTime(wvol,AC.currentTime,.1)};
 $('file').onchange=e=>{const f=e.target.files[0];if(!f||!AC)return;
  if(!mEl){mEl=new Audio();mEl.loop=true;mSrc=AC.createMediaElementSource(mEl);mSrc.connect(mus)}
  mEl.src=URL.createObjectURL(f);mOn=true;if(mode==='world')setMode('both');applyMix();$('trk').textContent='Playing: '+f.name};
@@ -192,7 +193,7 @@ addEventListener('keydown',e=>keys[e.key.toLowerCase()]=1);addEventListener('key
 $('rest').onclick=()=>{resting=!resting;$('rest').setAttribute('aria-pressed',resting);$('rest').textContent=resting?'Glide':'Rest';say(resting?'Resting. The world waits.':'')};
 function say(t){const h=$('hint');h.textContent=t;h.style.opacity=t?1:0;if(t)setTimeout(()=>h.style.opacity=0,3500)}
 $('go').onclick=()=>{audioInit();AC.resume();started=true;document.body.classList.add('on');setTimeout(()=>say('Drag to steer. Somewhere ahead, something is bending the light.'),2500)};
-setInterval(()=>{if(PREVIEW)return;localStorage.setItem('km_world',JSON.stringify({seed,x:px,z:pz,yaw,t:(tod0+T/200)%1}))},4000);
+setInterval(()=>{if(PREVIEW)return;LS.set('km_world',JSON.stringify({seed,x:px,z:pz,yaw,t:(tod0+T/200)%1}))},4000);
 
 let last=performance.now(),au=0,camY=30,pvT=.03,nextV=PREVIEW?0:Infinity,vl=[],vi=0;
 /* preview: find elevated spots that look out toward high peaks or open sea, then glide through them at golden hour */
@@ -209,7 +210,7 @@ function buildVistas(){const c=[];
  vl=out.length?out:[{x:px,z:pz,yaw:0,s:0,p:-.06,t:.05}]}
 function nextVista(){if(!vl.length)buildVistas();const v=vl[vi++%vl.length],f=$('fade');f.style.opacity=1;nextV=T+12.5;
  setTimeout(()=>{px=v.x;pz=v.z;yaw=v.yaw;pitch=v.p;pvT=v.t;camY=hJ(px,pz)+18;f.style.opacity=0},500)}
-function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;if(PREVIEW){if(T>=nextV)nextVista();yaw+=Math.sin(T*.25)*.03*dt}
+function frame(now){if(!(CALM&&now>4000))requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;if(PREVIEW){if(T>=nextV)nextVista();yaw+=Math.sin(T*.25)*.03*dt}
  const turn=(keys.arrowleft||keys.a?1:0)-(keys.arrowright||keys.d?1:0);yaw+=turn*1.2*dt;if(!drag&&!PREVIEW)pitch*=1-Math.min(1,dt*1.5);
  mom=clamp(mom+(resting?-.3:.05)*dt,.2,1);
  const tgt=PREVIEW?6:!started?3:resting?0:14*(.6+.8*mom)*(reduce?.6:1);sp+=(tgt-sp)*Math.min(1,dt*1.5);
