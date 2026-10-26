@@ -138,20 +138,16 @@ function audioInit(){
  for(let c=0;c<2;c++){const d=ib.getChannelData(c);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3.5)}
  cv.buffer=ib;verbIn=AC.createGain();verbIn.gain.value=.3;const vl=AC.createBiquadFilter();vl.frequency.value=2800;const vo=AC.createGain();vo.gain.value=.7;
  verbIn.connect(cv);cv.connect(vl);vl.connect(vo);vo.connect(pitched);
- lp=AC.createBiquadFilter();lp.frequency.value=800;lp.Q.value=.4;padG=AC.createGain();padG.gain.value=0;
- const lfo=AC.createOscillator(),lg=AC.createGain();lfo.frequency.value=.11;lg.gain.value=7;lfo.connect(lg);lfo.start();
- const fl=AC.createOscillator(),fq=AC.createGain();fl.frequency.value=.05;fq.gain.value=250;fl.connect(fq);fq.connect(lp.frequency);fl.start();
- for(let i=0;i<8;i++){const o=AC.createOscillator(),g=AC.createGain();o.type=i%2?'triangle':'sawtooth';o.detune.value=(i%2?-1:1)*(5+i);g.gain.value=i%2?.07:.035;lg.connect(o.detune);o.connect(g);g.connect(lp);o.start();pads.push(o)}
- lp.connect(padG);padG.connect(pitched);padG.connect(verbIn);
- const nb=AC.createBuffer(1,AC.sampleRate*4,AC.sampleRate),nd=nb.getChannelData(0);let l=0;
+  const nb=AC.createBuffer(1,AC.sampleRate*4,AC.sampleRate),nd=nb.getChannelData(0);let l=0;
  for(let i=0;i<nd.length;i++){l=(l+.02*(Math.random()*2-1))/1.02;nd[i]=l*3.5}
  const ns=AC.createBufferSource();ns.buffer=nb;ns.loop=true;windF=AC.createBiquadFilter();windF.type='bandpass';windF.Q.value=.5;windG=AC.createGain();windG.gain.value=0;
  const wl=AC.createOscillator(),wq=AC.createGain();wl.frequency.value=.08;wq.gain.value=.03;wl.connect(wq);wq.connect(windG.gain);wl.start();
  ns.connect(windF);windF.connect(windG);windG.connect(texB);ns.start();
- setChord();setInterval(()=>{chord++;setChord()},22000);phrase();applyMix();
+ setInterval(()=>{chord++},22000);phrase();applyMix();
 }
-function setChord(){if(!AC)return;const t=AC.currentTime,r=mtof(root,PRG[scale][chord%4]),v=[0,7,12,12+(scale==='min'?3:4)];
- pads.forEach((o,i)=>o.frequency.setTargetAtTime(mtof(r,v[i>>1]),t,3))}
+function bass(){if(!AC||AC.state!=='running')return;const t=AC.currentTime,o=AC.createOscillator(),g=AC.createGain();
+ o.type='triangle';o.frequency.value=mtof(root,PRG[scale][chord%4]);g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.11,t+.03);g.gain.exponentialRampToValueAtTime(.0004,t+2.4);
+ o.connect(g);g.connect(pitched);o.start(t);o.stop(t+2.5)}
 function note(dg){if(!AC||AC.state!=='running')return;const t=AC.currentTime,f=mtof(root*(lights<.3?1:2),SCL[scale][dg%7]+12*Math.floor(dg/7));
  const c=AC.createOscillator(),m=AC.createOscillator(),mg=AC.createGain(),g=AC.createGain(),fl=AC.createBiquadFilter();
  c.frequency.value=f;c.detune.value=(Math.random()-.5)*8;m.frequency.value=f*3.5;mg.gain.setValueAtTime(f*.9,t);mg.gain.exponentialRampToValueAtTime(.01,t+.35);
@@ -160,13 +156,11 @@ function note(dg){if(!AC||AC.state!=='running')return;const t=AC.currentTime,f=m
  c.connect(fl);fl.connect(g);let out=g;
  if(AC.createStereoPanner){const p=AC.createStereoPanner();p.pan.value=Math.random()*1.2-.6;g.connect(p);out=p}
  out.connect(pitched);out.connect(verbIn);c.start(t);m.start(t);c.stop(t+2.3);m.stop(t+2.3)}
-function phrase(){const len=3+Math.floor(Math.random()*4),beat=.85;let k0=0;
+function phrase(){bass();const len=3+Math.floor(Math.random()*4),beat=.85;let k0=0;
  for(let k=0;k<len;k++){deg=clamp(deg+[-2,-1,-1,0,1,1,2][Math.floor(Math.random()*7)],0,12);if(deg>9&&Math.random()<.5)deg-=3;const d=deg;setTimeout(()=>note(d),k0*beat*1000);k0+=Math.random()<.3?2:1}
  setTimeout(phrase,(k0+6+Math.floor(Math.random()*6)+(resting?4:0))*beat*1000)}
-function audioUpdate(b,light,v){if(!AC)return;const t=AC.currentTime,ns=b>.5?'maj':'min';lights=light;
- if(ns!==scale){scale=ns;root=b>.5?130.81:110;setChord()}
- padG.gain.setTargetAtTime(.45+.4*mom,t,1.5);lp.frequency.setTargetAtTime(450+700*light,t,2);
- windG.gain.setTargetAtTime(.03+.16*v,t,.8);windF.frequency.setTargetAtTime(250+450*v+200*light,t,.8)}
+function audioUpdate(b,light,v){if(!AC)return;const t=AC.currentTime;lights=light;scale=b>.5?'maj':'min';root=b>.5?130.81:110;
+ windG.gain.setTargetAtTime(.025+.12*v,t,.8);windF.frequency.setTargetAtTime(250+450*v+200*light,t,.8)}
 function applyMix(){if(!AC)return;const t=AC.currentTime,own=mOn&&mode!=='world';
  pitched.gain.setTargetAtTime(own?0:1,t,.8);texB.gain.setTargetAtTime(mOn&&mode==='music'?.25:1,t,.8);mus.gain.setTargetAtTime(own?1:0,t,.5);
  if(mEl){if(mode==='world')mEl.pause();else if(mOn)mEl.play().catch(()=>{})}}
