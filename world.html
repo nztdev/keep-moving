@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#070a12"><title>Keep Moving — the world</title>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;800&family=Inter:wght@500&display=swap" rel="stylesheet">
+<style>
+:root{--amber:#f5a623;--teal:#2dd4bf;--ink:#f4f1ea;--bg:#070a12;--muted:#b4bcc8}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);color:var(--ink);font-family:Inter,sans-serif;overflow:hidden;touch-action:none;overscroll-behavior:none}
+canvas{position:fixed;inset:0;width:100%;height:100%;image-rendering:crisp-edges;image-rendering:pixelated}
+.ui{position:fixed;top:calc(14px + env(safe-area-inset-top,0px));left:14px;right:14px;display:flex;gap:8px;z-index:5;opacity:0;transition:opacity 1.2s ease 1s}
+body.on .ui{opacity:1}
+.ui .sp{flex:1}
+.b{min-height:44px;padding:0 16px;border-radius:22px;border:1px solid rgba(255,255,255,.22);background:rgba(7,10,18,.55);backdrop-filter:blur(8px);color:var(--ink);font:600 14px Sora,sans-serif;cursor:pointer;display:inline-flex;align-items:center;text-decoration:none}
+.b:hover,.b:focus-visible{border-color:var(--amber);outline:none}
+.b[aria-pressed=true]{background:var(--amber);color:#22160a;border-color:var(--amber)}
+#start{position:fixed;inset:0;z-index:9;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:2rem;background:radial-gradient(ellipse at 50% 40%,rgba(7,10,18,.35),rgba(7,10,18,.92));transition:opacity 1.6s ease}
+body.on #start{opacity:0;pointer-events:none}
+#start h1{font:800 clamp(2.2rem,9vw,4rem);font-family:Sora,sans-serif;letter-spacing:-1px;line-height:1.05;margin-bottom:.9rem}
+#start p{color:var(--muted);max-width:30ch;line-height:1.65;margin-bottom:1.8rem}
+#go{min-height:52px;padding:0 2.2rem;border:0;border-radius:26px;background:var(--amber);color:#22160a;font:700 16px Sora,sans-serif;cursor:pointer}
+#panel{position:fixed;z-index:8;right:14px;top:calc(68px + env(safe-area-inset-top,0px));width:min(300px,calc(100vw - 28px));background:rgba(12,16,26,.92);border:1px solid rgba(255,255,255,.16);border-radius:16px;padding:16px;display:none;backdrop-filter:blur(10px)}
+#panel.open{display:block}
+#panel h2{font:700 15px Sora,sans-serif;margin-bottom:10px}
+.seg{display:flex;gap:6px;margin-bottom:12px}
+.seg .b{flex:1;justify-content:center;padding:0 6px;font-size:13px}
+#panel .note{font-size:13px;line-height:1.55;color:var(--muted);margin-top:10px}
+#fade{position:fixed;inset:0;background:#070a12;opacity:0;pointer-events:none;transition:opacity .5s ease;z-index:20}body.pv #start,body.pv .ui,body.pv #panel,body.pv #hint{display:none}body.pv #fade{opacity:1}
+#hint{position:fixed;left:0;right:0;bottom:calc(22px + env(safe-area-inset-bottom,0px));text-align:center;z-index:4;font-size:14px;color:var(--ink);opacity:0;transition:opacity 1.5s ease;text-shadow:0 1px 8px #000}
+@media (prefers-reduced-motion:reduce){#start,.ui{transition:none}}
+</style></head><body>
+<canvas id="c"></canvas>
+<div id="start"><h1>Keep moving.</h1><p>An open world with no goal. Drag to steer, rest whenever you like. Best with headphones.</p><button id="go">Begin</button></div>
+<div class="ui">
+  <a class="b" href="./" aria-label="Back to the app">Back</a>
+  <span class="sp"></span>
+  <button class="b" id="rest" aria-pressed="false">Rest</button>
+  <button class="b" id="mute" aria-pressed="false">Mute</button>
+  <button class="b" id="mus" aria-expanded="false">Sound</button>
+</div>
+<div id="panel" role="dialog" aria-label="Sound">
+  <h2>Sound</h2>
+  <div class="seg" id="seg"><button class="b" data-m="world">World</button><button class="b" data-m="both" aria-pressed="true">Both</button><button class="b" data-m="music">My music</button></div>
+  <label class="note" for="wv" style="display:block;margin:0 0 4px">World volume</label>
+  <input type="range" id="wv" min="0" max="1" step=".05" style="width:100%;margin-bottom:12px;accent-color:var(--amber)">
+  <button class="b" id="pick" style="width:100%;justify-content:center">Play my music</button>
+  <input type="file" id="file" accept="audio/*" hidden>
+  <div class="note" id="trk">Pick a track from your device. It stays on this device, and the world's melody steps back while it plays.</div>
+  <button class="b" id="copy" style="width:100%;justify-content:center;margin-top:12px">Copy link to this world</button>
+</div>
+<div id="hint"></div><div id="fade"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+const $=id=>document.getElementById(id),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
+let sv={};try{sv=JSON.parse(localStorage.getItem('km_world')||'{}')}catch(e){}
+const qs=new URLSearchParams(location.search);
+const seed=parseInt(qs.get('seed'))||sv.seed||4821;
+const PREVIEW=qs.get('preview')==='1';if(PREVIEW)document.body.classList.add('pv');
+const use=!PREVIEW&&sv.seed===seed, seedB=seed*0.37;
+
+/* ── renderer: low-res buffer scaled up = the pixel look ── */
+const R=new THREE.WebGLRenderer({canvas:$('c'),antialias:false});
+const PX=PREVIEW?6:innerWidth<700?3:4;
+const sc=new THREE.Scene(),cam=new THREE.PerspectiveCamera(70,1,.5,2500);cam.rotation.order='YXZ';
+function fit(){R.setPixelRatio(1);R.setSize(Math.ceil(innerWidth/PX),Math.ceil(innerHeight/PX),false);cam.aspect=innerWidth/innerHeight;cam.updateProjectionMatrix()}
+addEventListener('resize',fit);fit();
+
+/* ── terrain: seeded lattice texture shared by shader and JS, so the camera can ride over real mountains ── */
+function rng(a){return()=>{a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+const rr=rng(seed*7919+13),tbl=new Uint8Array(65536);for(let i=0;i<65536;i++)tbl[i]=Math.floor(rr()*256);
+const tt=new THREE.DataTexture(tbl,256,256,THREE.RedFormat,THREE.UnsignedByteType);tt.minFilter=tt.magFilter=THREE.NearestFilter;tt.needsUpdate=true;
+const TJ=(x,y)=>tbl[((y&255)<<8)|(x&255)]/255,ss=(a,b,x)=>{const t=clamp((x-a)/(b-a),0,1);return t*t*(3-2*t)};
+function vnJ(x,y){const ix=Math.floor(x),iy=Math.floor(y);let fx=x-ix,fy=y-iy;fx=fx*fx*(3-2*fx);fy=fy*fy*(3-2*fy);return lerp(lerp(TJ(ix,iy),TJ(ix+1,iy),fx),lerp(TJ(ix,iy+1),TJ(ix+1,iy+1),fx),fy)}
+function fbmJ(x,y){let a=.5,s=0;for(let i=0;i<4;i++){s+=a*vnJ(x,y);x*=2.03;y*=2.03;a*=.5}return s}
+function hJ(x,y){const c=fbmJ(x*.0035,y*.0035)-.45,m=ss(.05,.3,c),r0=1-Math.abs(2*fbmJ(x*.008+17,y*.008+17)-1),hl=fbmJ(x*.03,y*.03)*6,lk=ss(.6,.7,fbmJ(x*.012+31,y*.012+31));return c*80+m*r0*r0*90+hl*(m*.7+.3)-lk*14*(1-m)}
+function findStart(){for(let i=0;i<500;i++){const a=i*2.4,r=42*Math.sqrt(i),x=Math.cos(a)*r,z=Math.sin(a)*r,h=hJ(x,z);if(h>6&&h<28)return[x,z]}return[0,0]}
+const U={uSeed:{value:seedB},uT:{value:tt},uTm:{value:0},uP:{value:new THREE.Vector2()},uC:{value:new THREE.Vector2()},uSky:{value:new THREE.Color()},uL:{value:1}};
+const terr=new THREE.Mesh(new THREE.PlaneGeometry(900,900,220,220).rotateX(-Math.PI/2),new THREE.ShaderMaterial({uniforms:U,
+vertexShader:`uniform sampler2D uT;uniform vec2 uP,uC;varying vec3 vW;varying float vH;
+float T(vec2 v){return texture2D(uT,(mod(v,256.)+.5)/256.).r;}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);return mix(mix(T(i),T(i+vec2(1,0)),f.x),mix(T(i+vec2(0,1)),T(i+vec2(1,1)),f.x),f.y);}
+float fbm(vec2 p){float a=.5,s=0.;for(int i=0;i<4;i++){s+=a*vn(p);p*=2.03;a*=.5;}return s;}
+float ht(vec2 w){float c=fbm(w*.0035)-.45,m=smoothstep(.05,.3,c),r0=1.-abs(2.*fbm(w*.008+17.)-1.),hl=fbm(w*.03)*6.,lk=smoothstep(.6,.7,fbm(w*.012+31.));return c*80.+m*r0*r0*90.+hl*(m*.7+.3)-lk*14.*(1.-m);}
+void main(){vec2 w=position.xz+uC;float h=ht(w);float d=length(w-uP);float y=max(h,0.)-d*d*.00035;vW=vec3(w.x,y,w.y);vH=h;gl_Position=projectionMatrix*viewMatrix*vec4(w.x,y,w.y,1.);}`,
+fragmentShader:`uniform float uSeed,uL,uTm;uniform vec2 uP;uniform vec3 uSky;varying vec3 vW;varying float vH;
+void main(){float b=smoothstep(.35,.65,.5+.5*sin(vW.x*.004+uSeed)*cos(vW.z*.0033));vec3 c;
+if(vH<0.){float dp=floor(clamp(-vH/35.,0.,1.)*4.)/4.;c=mix(vec3(.16,.55,.6),vec3(.03,.1,.17),dp);c+=.05*sin(vW.x*.15+uTm*.8)*sin(vW.z*.13+uTm*.6);c=mix(c,uSky,.18);}
+else if(vH<2.){c=vec3(.85,.72,.5);}
+else{float n=floor(clamp(vH/26.,0.,.999)*4.)/3.;vec3 tl=mix(vec3(.05,.2,.18),vec3(.35,.7,.55),n),am=mix(vec3(.2,.11,.05),vec3(.8,.52,.16),n);c=mix(tl,am,b);
+c=mix(c,mix(vec3(.28,.25,.33),vec3(.55,.5,.58),clamp((vH-26.)/60.,0.,1.)),smoothstep(26.,48.,vH));c=mix(c,vec3(.95,.97,1.),smoothstep(78.,92.,vH));}
+c*=.28+.72*uL;c=mix(c,uSky,smoothstep(100.,420.,length(vW.xz-uP)));gl_FragColor=vec4(c,1.);}`}));
+terr.frustumCulled=false;sc.add(terr);
+const biome=(x,z)=>.5+.5*Math.sin(x*.004+seedB)*Math.cos(z*.0033);
+
+/* ── sky cycle: dawn → day → dusk → night ── */
+const K=['#e8935a','#7fd4cf','#c8643c','#070a12'].map(c=>new THREE.Color(c)),sky=new THREE.Color();
+function skyAt(t){const f=t*4,i=Math.floor(f)%4;sky.copy(K[i]).lerp(K[(i+1)%4],f-Math.floor(f));return .5+.5*Math.sin(t*Math.PI*2)}
+
+/* ── soft textures (no hard squares) ── */
+function tex(draw,s){const c=document.createElement('canvas');c.width=c.height=s;const x=c.getContext('2d');draw(x,s);return new THREE.CanvasTexture(c)}
+const dot=tex((x,s)=>{const g=x.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);g.addColorStop(0,'#fff');g.addColorStop(.4,'rgba(255,255,255,.5)');g.addColorStop(1,'rgba(255,255,255,0)');x.fillStyle=g;x.fillRect(0,0,s,s)},64);
+const ring=tex((x,s)=>{const g=x.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);[[0,'rgba(0,0,0,0)'],[.3,'rgba(0,0,0,0)'],[.4,'rgba(255,248,230,1)'],[.5,'rgba(255,190,100,.9)'],[.7,'rgba(200,70,30,.25)'],[1,'rgba(120,30,20,0)']].forEach(a=>g.addColorStop(a[0],a[1]));x.fillStyle=g;x.fillRect(0,0,s,s)},256);
+
+/* ── fireflies ── */
+const FN=240,fb=new Float32Array(FN*3),fp=new Float32Array(FN*3);
+for(let i=0;i<FN;i++){fb[i*3]=Math.random()*60;fb[i*3+1]=3+Math.random()*12;fb[i*3+2]=Math.random()*60}
+const fg=new THREE.BufferGeometry();fg.setAttribute('position',new THREE.BufferAttribute(fp,3));
+const fm=new THREE.PointsMaterial({size:.4,map:dot,color:0xffd98a,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false});
+const fl=new THREE.Points(fg,fm);fl.frustumCulled=false;sc.add(fl);
+
+/* ── landmark: a distant black hole, far ahead ── */
+const bh=new THREE.Group();bh.position.set(200+seed%100,170,-700);
+bh.add(new THREE.Mesh(new THREE.SphereGeometry(16,24,24),new THREE.MeshBasicMaterial({color:0})));
+[[110,110,.16,0],[150,62,.5,-.17]].forEach(a=>{const s=new THREE.Sprite(new THREE.SpriteMaterial({map:ring,blending:THREE.AdditiveBlending,transparent:true,opacity:a[2],depthWrite:false,rotation:a[3]}));s.scale.set(a[0],a[1],1);bh.add(s)});
+sc.add(bh);
+
+/* ── audio: warm generative world (drifting pads, slow chord changes, soft mallet phrases, reverb) + optional own music ── */
+let AC,master,wGain,pitched,texB,mus,verbIn,padG,lp,windF,windG,mEl,mSrc,mode='both',mOn=false,root=110,scale='min',chord=0,pads=[],lights=.5,deg=7;
+let muted=localStorage.getItem('km_mute')==='1',wvol=parseFloat(localStorage.getItem('km_wvol')||'.8');
+const SCL={min:[0,2,3,5,7,8,10],maj:[0,2,4,6,7,9,11]},PRG={min:[0,-4,3,-2],maj:[0,2,-5,-3]},mtof=(r,s)=>r*Math.pow(2,s/12);
+function audioInit(){
+ AC=new(window.AudioContext||window.webkitAudioContext)();
+ const comp=AC.createDynamicsCompressor();comp.threshold.value=-18;comp.ratio.value=8;
+ master=AC.createGain();master.gain.value=muted?0:.9;master.connect(comp);comp.connect(AC.destination);
+ wGain=AC.createGain();wGain.gain.value=wvol;wGain.connect(master);
+ pitched=AC.createGain();texB=AC.createGain();mus=AC.createGain();mus.gain.value=0;
+ pitched.connect(wGain);texB.connect(wGain);mus.connect(master);
+ const cv=AC.createConvolver(),n=AC.sampleRate*2.4,ib=AC.createBuffer(2,n,AC.sampleRate);
+ for(let c=0;c<2;c++){const d=ib.getChannelData(c);for(let i=0;i<n;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/n,3.5)}
+ cv.buffer=ib;verbIn=AC.createGain();verbIn.gain.value=.3;const vl=AC.createBiquadFilter();vl.frequency.value=2800;const vo=AC.createGain();vo.gain.value=.7;
+ verbIn.connect(cv);cv.connect(vl);vl.connect(vo);vo.connect(pitched);
+ lp=AC.createBiquadFilter();lp.frequency.value=800;lp.Q.value=.4;padG=AC.createGain();padG.gain.value=0;
+ const lfo=AC.createOscillator(),lg=AC.createGain();lfo.frequency.value=.11;lg.gain.value=7;lfo.connect(lg);lfo.start();
+ const fl=AC.createOscillator(),fq=AC.createGain();fl.frequency.value=.05;fq.gain.value=250;fl.connect(fq);fq.connect(lp.frequency);fl.start();
+ for(let i=0;i<8;i++){const o=AC.createOscillator(),g=AC.createGain();o.type=i%2?'triangle':'sawtooth';o.detune.value=(i%2?-1:1)*(5+i);g.gain.value=i%2?.07:.035;lg.connect(o.detune);o.connect(g);g.connect(lp);o.start();pads.push(o)}
+ lp.connect(padG);padG.connect(pitched);padG.connect(verbIn);
+ const nb=AC.createBuffer(1,AC.sampleRate*4,AC.sampleRate),nd=nb.getChannelData(0);let l=0;
+ for(let i=0;i<nd.length;i++){l=(l+.02*(Math.random()*2-1))/1.02;nd[i]=l*3.5}
+ const ns=AC.createBufferSource();ns.buffer=nb;ns.loop=true;windF=AC.createBiquadFilter();windF.type='bandpass';windF.Q.value=.5;windG=AC.createGain();windG.gain.value=0;
+ const wl=AC.createOscillator(),wq=AC.createGain();wl.frequency.value=.08;wq.gain.value=.03;wl.connect(wq);wq.connect(windG.gain);wl.start();
+ ns.connect(windF);windF.connect(windG);windG.connect(texB);ns.start();
+ setChord();setInterval(()=>{chord++;setChord()},22000);phrase();applyMix();
+}
+function setChord(){if(!AC)return;const t=AC.currentTime,r=mtof(root,PRG[scale][chord%4]),v=[0,7,12,12+(scale==='min'?3:4)];
+ pads.forEach((o,i)=>o.frequency.setTargetAtTime(mtof(r,v[i>>1]),t,3))}
+function note(dg){if(!AC||AC.state!=='running')return;const t=AC.currentTime,f=mtof(root*(lights<.3?1:2),SCL[scale][dg%7]+12*Math.floor(dg/7));
+ const c=AC.createOscillator(),m=AC.createOscillator(),mg=AC.createGain(),g=AC.createGain(),fl=AC.createBiquadFilter();
+ c.frequency.value=f;c.detune.value=(Math.random()-.5)*8;m.frequency.value=f*3.5;mg.gain.setValueAtTime(f*.9,t);mg.gain.exponentialRampToValueAtTime(.01,t+.35);
+ m.connect(mg);mg.connect(c.frequency);fl.frequency.value=2200+1500*lights;
+ g.gain.setValueAtTime(0,t);g.gain.linearRampToValueAtTime(.07+Math.random()*.07,t+.008);g.gain.exponentialRampToValueAtTime(.0004,t+2.2);
+ c.connect(fl);fl.connect(g);let out=g;
+ if(AC.createStereoPanner){const p=AC.createStereoPanner();p.pan.value=Math.random()*1.2-.6;g.connect(p);out=p}
+ out.connect(pitched);out.connect(verbIn);c.start(t);m.start(t);c.stop(t+2.3);m.stop(t+2.3)}
+function phrase(){const len=3+Math.floor(Math.random()*4),beat=.85;let k0=0;
+ for(let k=0;k<len;k++){deg=clamp(deg+[-2,-1,-1,0,1,1,2][Math.floor(Math.random()*7)],0,12);if(deg>9&&Math.random()<.5)deg-=3;const d=deg;setTimeout(()=>note(d),k0*beat*1000);k0+=Math.random()<.3?2:1}
+ setTimeout(phrase,(k0+6+Math.floor(Math.random()*6)+(resting?4:0))*beat*1000)}
+function audioUpdate(b,light,v){if(!AC)return;const t=AC.currentTime,ns=b>.5?'maj':'min';lights=light;
+ if(ns!==scale){scale=ns;root=b>.5?130.81:110;setChord()}
+ padG.gain.setTargetAtTime(.45+.4*mom,t,1.5);lp.frequency.setTargetAtTime(450+700*light,t,2);
+ windG.gain.setTargetAtTime(.03+.16*v,t,.8);windF.frequency.setTargetAtTime(250+450*v+200*light,t,.8)}
+function applyMix(){if(!AC)return;const t=AC.currentTime,own=mOn&&mode!=='world';
+ pitched.gain.setTargetAtTime(own?0:1,t,.8);texB.gain.setTargetAtTime(mOn&&mode==='music'?.25:1,t,.8);mus.gain.setTargetAtTime(own?1:0,t,.5);
+ if(mEl){if(mode==='world')mEl.pause();else if(mOn)mEl.play().catch(()=>{})}}
+function setMute(m){muted=m;localStorage.setItem('km_mute',m?'1':'0');$('mute').setAttribute('aria-pressed',m);$('mute').textContent=m?'Unmute':'Mute';if(master)master.gain.setTargetAtTime(m?0:.9,AC.currentTime,.15)}
+$('mute').onclick=()=>setMute(!muted);setMute(muted);
+$('wv').value=wvol;$('wv').oninput=e=>{wvol=parseFloat(e.target.value);localStorage.setItem('km_wvol',wvol);if(wGain)wGain.gain.setTargetAtTime(wvol,AC.currentTime,.1)};
+$('file').onchange=e=>{const f=e.target.files[0];if(!f||!AC)return;
+ if(!mEl){mEl=new Audio();mEl.loop=true;mSrc=AC.createMediaElementSource(mEl);mSrc.connect(mus)}
+ mEl.src=URL.createObjectURL(f);mOn=true;if(mode==='world')setMode('both');applyMix();$('trk').textContent='Playing: '+f.name};
+function setMode(m){mode=m;document.querySelectorAll('#seg .b').forEach(b=>b.setAttribute('aria-pressed',b.dataset.m===m));applyMix()}
+document.querySelectorAll('#seg .b').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$('pick').onclick=()=>$('file').click();
+$('mus').onclick=()=>{const o=$('panel').classList.toggle('open');$('mus').setAttribute('aria-expanded',o)};
+$('copy').onclick=()=>{navigator.clipboard.writeText(location.origin+location.pathname+'?seed='+seed).then(()=>{$('copy').textContent='Copied';setTimeout(()=>$('copy').textContent='Copy link to this world',1800)})};
+document.addEventListener('visibilitychange',()=>{if(!AC)return;document.hidden?AC.suspend():AC.resume()});
+
+/* ── movement: always gliding, momentum builds, resting is free ── */
+let [px,pz]=use?[sv.x,sv.z]:findStart(),yaw=use?sv.yaw:0,pitch=0,mom=.4,sp=3,resting=false,started=false,drag=false,lx=0,ly=0,T=0,acc=0;
+const tod0=use&&sv.t!=null?sv.t:.2,keys={};
+addEventListener('pointerdown',e=>{if(e.target.closest('.ui,#panel,#start'))return;drag=true;lx=e.clientX;ly=e.clientY});
+addEventListener('pointermove',e=>{if(!drag)return;yaw-=(e.clientX-lx)*.004;pitch=clamp(pitch-(e.clientY-ly)*.002,-.3,.3);lx=e.clientX;ly=e.clientY});
+addEventListener('pointerup',()=>drag=false);addEventListener('pointercancel',()=>drag=false);
+addEventListener('keydown',e=>keys[e.key.toLowerCase()]=1);addEventListener('keyup',e=>keys[e.key.toLowerCase()]=0);
+$('rest').onclick=()=>{resting=!resting;$('rest').setAttribute('aria-pressed',resting);$('rest').textContent=resting?'Glide':'Rest';say(resting?'Resting. The world waits.':'')};
+function say(t){const h=$('hint');h.textContent=t;h.style.opacity=t?1:0;if(t)setTimeout(()=>h.style.opacity=0,3500)}
+$('go').onclick=()=>{audioInit();AC.resume();started=true;document.body.classList.add('on');setTimeout(()=>say('Drag to steer. Somewhere ahead, something is bending the light.'),2500)};
+setInterval(()=>{if(PREVIEW)return;localStorage.setItem('km_world',JSON.stringify({seed,x:px,z:pz,yaw,t:(tod0+T/200)%1}))},4000);
+
+let last=performance.now(),au=0,camY=30,pvT=.03,nextV=PREVIEW?0:Infinity,vl=[],vi=0;
+/* preview: find elevated spots that look out toward high peaks or open sea, then glide through them at golden hour */
+function buildVistas(){const c=[];for(let i=0;i<320;i++){const a=i*2.4,r=82*Math.sqrt(i),x=Math.cos(a)*r,z=Math.sin(a)*r,h=hJ(x,z);if(h<8||h>50)continue;let bs=0,by=0;
+ for(let k=0;k<12;k++){const y=k/12*6.283,dx=-Math.sin(y),dz=-Math.cos(y);let pk=0,sea=0;for(let d=70;d<=420;d+=70){const hh=hJ(x+dx*d,z+dz*d);if(hh>pk)pk=hh;if(hh<-2)sea=1}const sc=pk+sea*55;if(sc>bs){bs=sc;by=y}}
+ c.push({x,z,yaw:by,s:bs,t:[.02,.05,.44,.47][i%4]})}
+ c.sort((a,b)=>b.s-a.s);const out=[];for(const v of c){if(out.every(o=>Math.hypot(o.x-v.x,o.z-v.z)>350))out.push(v);if(out.length>=7)break}
+ vl=out.length?out:[{x:px,z:pz,yaw:0,s:0,t:.05}]}
+function nextVista(){if(!vl.length)buildVistas();const v=vl[vi++%vl.length],f=$('fade');f.style.opacity=1;nextV=T+11.5;
+ setTimeout(()=>{px=v.x;pz=v.z;yaw=v.yaw;pitch=-.02;pvT=v.t;camY=hJ(px,pz)+9;f.style.opacity=0},500)}
+function frame(now){requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;if(PREVIEW){if(T>=nextV)nextVista();yaw+=Math.sin(T*.25)*.03*dt}
+ const turn=(keys.arrowleft||keys.a?1:0)-(keys.arrowright||keys.d?1:0);yaw+=turn*1.2*dt;if(!drag)pitch*=1-Math.min(1,dt*1.5);
+ mom=clamp(mom+(resting?-.3:.05)*dt,.2,1);
+ const tgt=PREVIEW?9:!started?3:resting?0:14*(.6+.8*mom)*(reduce?.6:1);sp+=(tgt-sp)*Math.min(1,dt*1.5);
+ px-=Math.sin(yaw)*sp*dt;pz-=Math.cos(yaw)*sp*dt;
+ const light=skyAt(PREVIEW?pvT:(tod0+T/200)%1);U.uL.value=light;U.uTm.value=T;U.uSky.value.copy(sky);sc.background=sky;
+ const st=900/220;U.uC.value.set(Math.round(px/st)*st,Math.round(pz/st)*st);U.uP.value.set(px,pz);
+ const sx=Math.sin(yaw),cz=Math.cos(yaw),hg=Math.max(0,hJ(px,pz),hJ(px-sx*14,pz-cz*14),hJ(px-sx*30,pz-cz*30)*.8)+9;camY+=(hg-camY)*Math.min(1,dt*(hg>camY?4:1.2));camY=Math.max(camY,hJ(px,pz)+4);cam.position.set(px,camY+(reduce?0:Math.sin(T*.8)*.35),pz);cam.rotation.set(pitch-.05,yaw,0);
+ for(let i=0;i<FN;i++){const j=i*3;fp[j]=px+(((fb[j]-px)%60)+60)%60-30;fp[j+1]=camY-8+fb[j+1]+Math.sin(T+i)*.4;fp[j+2]=pz+(((fb[j+2]-pz)%60)+60)%60-30}
+ fg.attributes.position.needsUpdate=true;fm.opacity=.35+.65*(1-light);
+ R.render(sc,cam);
+ au+=dt;if(au>.3){au=0;audioUpdate(biome(px,pz),light,clamp(sp/20,0,1))}}
+requestAnimationFrame(frame);
+</script></body></html>
