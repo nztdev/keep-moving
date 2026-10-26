@@ -1350,8 +1350,7 @@ function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleH
   const still=matchMedia('(prefers-reduced-motion:reduce)').matches;let on=false;
   new IntersectionObserver(es=>es.forEach(e=>{
     if(window._wmHide)window._wmHide(e.isIntersecting);
-    if(still)return;
-    if(e.isIntersecting&&!on){fr.src='world.html?preview=1';on=true;}
+    if(e.isIntersecting&&!on){fr.src='world.html?preview=1'+(still?'&calm=1':'');on=true;}
     else if(!e.isIntersecting&&on){fr.src='about:blank';on=false;}
   }),{threshold:.2}).observe(sec);
   const K='km_world_purpose',chips=[...document.querySelectorAll('#purpose-chips .chip')],cur=localStorage.getItem(K);
@@ -1363,7 +1362,7 @@ function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleH
 /* ═══ MINI WORLD BUTTON — expands to a live preview, taps outside retract it, tapping the card enters ═══ */
 (function(){
   const wm=document.getElementById('wm'),btn=document.getElementById('wm-btn'),fr=document.getElementById('wm-frame'),still=matchMedia('(prefers-reduced-motion:reduce)').matches;
-  function open(o){wm.classList.toggle('open',o);btn.setAttribute('aria-expanded',o);if(!still)fr.src=o?'world.html?preview=1':'about:blank';}
+  function open(o){wm.classList.toggle('open',o);btn.setAttribute('aria-expanded',o);fr.src=o?'world.html?preview=1'+(still?'&calm=1':''):'about:blank';}
   btn.onclick=e=>{e.stopPropagation();open(true);};
   document.addEventListener('click',e=>{if(wm.classList.contains('open')&&!wm.contains(e.target))open(false);});
   addEventListener('keydown',e=>{if(e.key==='Escape')open(false);});
