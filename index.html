@@ -11,16 +11,17 @@
 <link rel="icon" type="image/png" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <script>
+window.LS={get:function(k){try{return localStorage.getItem(k)}catch(e){return null}},set:function(k,v){try{localStorage.setItem(k,v)}catch(e){}},del:function(k){try{localStorage.removeItem(k)}catch(e){}}};
 (function(){
   try{
-    var s = JSON.parse(localStorage.getItem('km_settings')||'{}');
+    var s = JSON.parse(LS.get('km_settings')||'{}');
     document.documentElement.setAttribute('data-theme', s.theme || 'default');
     document.documentElement.setAttribute('data-contrast', s.contrast ? 'high' : 'normal');
     document.documentElement.setAttribute('data-textsize', s.textsize || 'md');
   }catch(e){}
 })();
 </script>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/fonts.css">
 <style>
   :root{
     --amber:#f5a623;--amber-glow:rgba(245,166,35,.32);
@@ -262,7 +263,19 @@
   .native-card h3{font-family:var(--display);font-weight:700;font-size:.9375rem;color:var(--teal);letter-spacing:.3px;margin-bottom:.75rem;}
   .native-card p{font-size:.875rem;color:var(--muted);font-weight:500;line-height:1.7;margin-bottom:.75rem;}
 
-    .wm{position:fixed;left:14px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:450}
+    .disclaimer{font-size:.75rem;color:var(--muted);line-height:1.5;margin-top:.9rem}
+  .care-card{background:var(--bg3);border:1px solid rgba(226,84,74,.5);border-radius:14px;padding:1.2rem 1.3rem;text-align:left}
+  .care-card h3{font-family:var(--display);font-size:1.1rem;margin-bottom:.6rem}
+  .care-card p{font-size:.9375rem;line-height:1.65;margin-bottom:.8rem}
+  .care-card ul{margin:0 0 .9rem 1.1rem;font-size:.9375rem;line-height:1.7}
+  .care-card a,.privacy a{color:var(--teal)}
+  .privacy{position:relative;z-index:2;max-width:520px;margin:0 auto;padding:0 1.25rem 1rem;color:var(--muted);font-size:.8125rem;line-height:1.65}
+  .privacy summary{cursor:pointer;color:var(--ink);padding:.5rem 0}
+  .privacy p{margin-bottom:.6rem}
+  .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom,0px));z-index:950;background:var(--bg2);border:1px solid var(--amber);border-radius:14px;padding:.7rem 1rem;font-size:.875rem;display:flex;gap:.8rem;align-items:center}
+  .toast[hidden]{display:none}
+  .toast button{background:var(--amber);color:#22160a;border:0;border-radius:8px;padding:.45rem .9rem;font-weight:700;cursor:pointer}
+  .wm{position:fixed;left:14px;bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:450}
   .wm-btn{min-height:44px;padding:0 16px 0 12px;border-radius:22px;border:1px solid var(--border2);background:rgba(11,14,20,.7);backdrop-filter:blur(8px);color:var(--ink);font-family:var(--display);font-weight:700;font-size:.8125rem;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
   .wm-btn:hover,.wm-btn:focus-visible{border-color:var(--amber);outline:none}
   .wm-btn i{width:9px;height:9px;border-radius:50%;background:var(--amber);box-shadow:0 0 10px var(--amber-glow)}
@@ -342,6 +355,7 @@
     <div class="settings-group">
       <button class="settings-danger" id="clear-cache-btn" onclick="clearCacheAndRefresh(this)">Clear cache &amp; refresh</button>
       <div class="settings-hint">Forces the app to reload the latest version. Doesn't touch your API key, saved runs, or these settings.</div>
+      <div class="settings-hint" id="app-version"></div>
     </div>
   </div>
 </div>
@@ -355,6 +369,8 @@
     <div class="history-list" id="history-list"></div>
   </div>
 </div>
+
+<div class="toast" id="update-toast" hidden role="status">A new version is ready. <button id="update-btn">Reload</button></div>
 
 <div class="wm" id="wm">
   <button class="wm-btn" id="wm-btn" aria-expanded="false" aria-controls="wm-card"><i></i>World</button>
@@ -384,7 +400,7 @@
           <button class="key-btn" onclick="saveKey()">SAVE</button>
         </div>
         <div class="key-note">
-          Stays in your browser only — sent directly to Google, never to any server.<br>
+          Your key stays on this device. What you write is sent to Google's Gemini to create your breakdown, never to us. On the free tier Google may use submitted content to improve its products, so skip sensitive personal details.<br>
           Free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com</a>
         </div>
         <div id="key-status" class="key-status"></div>
@@ -473,6 +489,7 @@
     </div>
     <div class="rv rv3">
       <button class="cta" id="submit-btn" disabled>ANALYZE MY SITUATION →</button>
+      <p class="disclaimer">Keep Moving is a reflection tool, not therapy or professional advice.</p>
     </div>
   </div>
 </section>
@@ -486,6 +503,19 @@
       <div class="lbar"><div class="lbar-i"></div></div>
     </div>
     <div class="err-box" id="err-msg"></div>
+    <div class="care-card" id="care-card" style="display:none">
+      <h3>Before we go further</h3>
+      <p>What you wrote sounds heavier than a stuck project, and that matters more than any plan. If you're in danger or thinking about ending your life, please reach out to someone now.</p>
+      <ul>
+        <li>Emergency: your local number (112 in the EU, 911 in the US)</li>
+        <li>Spain: 024, the suicide prevention line, free and open 24 hours</li>
+        <li>US: call or text 988</li>
+        <li>UK and Ireland: Samaritans, 116 123</li>
+        <li>Elsewhere: <a href="https://findahelpline.com" target="_blank" rel="noopener">findahelpline.com</a></li>
+      </ul>
+      <p>Keep Moving is a reflection tool, not therapy or crisis support. If you'd still like a gentler breakdown, you can continue.</p>
+      <div class="cq-actions"><button class="cq-btn" id="care-continue">Continue gently</button><button class="cq-skip" id="care-back">Go back</button></div>
+    </div>
   </div>
 </section>
 
@@ -581,6 +611,7 @@
       <button class="exp-btn" onclick="copySnippet(this)">Copy shareable snippet</button>
       <button class="exp-btn" id="save-run-btn" onclick="saveCurrentRun(this)">Save this run</button>
     </div>
+    <p class="disclaimer">Keep Moving is a reflection tool, not therapy or professional advice. If something feels heavier than a plan can help with, please talk to someone you trust or a professional.</p>
     <button class="restart-btn rv rv4" onclick="restart()">← Start over</button>
   </div>
 </section>
@@ -630,14 +661,21 @@
   </div>
 </section>
 
+<details class="privacy"><summary>Privacy</summary>
+  <p><strong>Stored on this device only:</strong> your API key, saved runs, display settings and your place in the world. There are no accounts, cookies or analytics from Keep Moving.</p>
+  <p><strong>Sent to Google:</strong> your four answers go to the Gemini API to generate the analysis. Under Google's free-tier terms, submitted content may be used to improve their products and reviewed by people (see <a href="https://ai.google.dev/gemini-api/terms" target="_blank" rel="noopener">Gemini API terms</a>). Avoid names and sensitive details.</p>
+  <p><strong>Your control:</strong> Settings lets you clear the key, saved runs live in the history drawer, and clearing your browser data removes everything.</p>
+</details>
 <footer>
   <span>Keep Moving</span>
   <span>·</span>
   <span>Powered by Gemini 3.5 Flash</span>
 </footer>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script>
+try{
+if(typeof THREE==='undefined')throw new Error('three.js unavailable');
 (function(){
   const canvas = document.getElementById('kmCanvas');
   const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true});
@@ -1138,6 +1176,7 @@
   }
   animate();
 })();
+}catch(e){var kc=document.getElementById('kmCanvas');if(kc)kc.style.display='none';console.warn('[keep-moving] background disabled',e);}
 
 /* ═══ REVEAL SYSTEM ═══ */
 (function(){
@@ -1215,7 +1254,7 @@ function goResult(targetId){
 
 /* ═══ SETTINGS ═══ */
 let settings = {};
-try{ settings = JSON.parse(localStorage.getItem('km_settings')||'{}'); }catch(e){ settings = {}; }
+try{ settings = JSON.parse(LS.get('km_settings')||'{}'); }catch(e){ settings = {}; }
 
 function applySettings(){
   const theme = settings.theme || 'default';
@@ -1231,7 +1270,7 @@ function applySettings(){
   if(typeof window._kmRecalcScroll === 'function') requestAnimationFrame(window._kmRecalcScroll);
   if(typeof window._kmRecalcTheme === 'function') window._kmRecalcTheme();
 }
-function saveSettings(){ localStorage.setItem('km_settings', JSON.stringify(settings)); }
+function saveSettings(){ LS.set('km_settings', JSON.stringify(settings)); }
 function setTheme(t){ settings.theme = t; applySettings(); saveSettings(); }
 function setContrast(on){ settings.contrast = on; applySettings(); saveSettings(); }
 function setTextSize(s){ settings.textsize = s; applySettings(); saveSettings(); }
@@ -1249,11 +1288,11 @@ const HISTORY_KEY = 'km_saved_runs';
 let pendingDeleteId = null;
 
 function getSavedRuns(){
-  try{ return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); }
+  try{ return JSON.parse(LS.get(HISTORY_KEY) || '[]'); }
   catch(e){ return []; }
 }
 function setSavedRuns(list){
-  try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(list)); }catch(e){}
+  try{ LS.set(HISTORY_KEY, JSON.stringify(list)); }catch(e){}
 }
 
 function saveCurrentRun(btn){
@@ -1353,10 +1392,10 @@ function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleH
     if(e.isIntersecting&&!on){fr.src='world.html?preview=1'+(still?'&calm=1':'');on=true;}
     else if(!e.isIntersecting&&on){fr.src='about:blank';on=false;}
   }),{threshold:.2}).observe(sec);
-  const K='km_world_purpose',chips=[...document.querySelectorAll('#purpose-chips .chip')],cur=localStorage.getItem(K);
-  chips.forEach(c=>{if(c.dataset.v===cur)c.classList.add('on');c.onclick=()=>{chips.forEach(x=>x.classList.remove('on'));c.classList.add('on');localStorage.setItem(K,c.dataset.v);};});
+  const K='km_world_purpose',chips=[...document.querySelectorAll('#purpose-chips .chip')],cur=LS.get(K);
+  chips.forEach(c=>{if(c.dataset.v===cur)c.classList.add('on');c.onclick=()=>{chips.forEach(x=>x.classList.remove('on'));c.classList.add('on');LS.set(K,c.dataset.v);};});
   const cb=document.getElementById('purpose-copy');
-  cb.onclick=()=>{const v=localStorage.getItem(K);if(!v)return;navigator.clipboard.writeText('Keep Moving world: I would use it for '+v).then(()=>{cb.textContent='Copied';setTimeout(()=>cb.textContent='Copy my answer',1800);});};
+  cb.onclick=()=>{const v=LS.get(K);if(!v)return;navigator.clipboard.writeText('Keep Moving world: I would use it for '+v).then(()=>{cb.textContent='Copied';setTimeout(()=>cb.textContent='Copy my answer',1800);});};
 })();
 
 /* ═══ MINI WORLD BUTTON — expands to a live preview, taps outside retract it, tapping the card enters ═══ */
@@ -1370,9 +1409,19 @@ function closeHistoryOnOverlay(e){ if(e.target.id === 'history-overlay') toggleH
 })();
 
 /* ═══ PWA — SERVICE WORKER + INSTALL ═══ */
+const APP_VERSION='0.9.0';
+(function(){var v=document.getElementById('app-version');if(v)v.textContent='Keep Moving v'+APP_VERSION+' (beta)';})();
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('service-worker.js').catch(()=>{});
+  const hadController = !!navigator.serviceWorker.controller;
+  let reloading = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!hadController || reloading) return; reloading = true; location.reload(); });
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('service-worker.js').then(reg => {
+      const offer = w => { document.getElementById('update-toast').hidden = false; document.getElementById('update-btn').onclick = () => w.postMessage('SKIP_WAITING'); };
+      if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
+      reg.addEventListener('updatefound', () => { const w = reg.installing; if (w) w.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); }); });
+      setInterval(() => reg.update().catch(() => {}), 3600000);
+    }).catch(() => {});
   });
 }
 let deferredInstallPrompt = null;
@@ -1397,7 +1446,7 @@ function showIosHelp(){
 }
 
 /* ═══ KEEP MOVING LOGIC ═══ */
-let apiKey = localStorage.getItem('km_gemini_key') || '';
+let apiKey = LS.get('km_gemini_key') || '';
 let dur = '', urg = '', lastResult = null, loadTimer = null, lastFailedParams = null;
 const loadMsgs = ['Reading your situation...', 'Naming the real problem...', 'Mapping your options...', 'Almost done...'];
 const durLabels = {
@@ -1419,13 +1468,13 @@ function saveKey() {
   const val = document.getElementById('api-key-input').value.trim();
   if (!val || val.length < 10) { showKeyStatus("That doesn't look like a valid key.", false); return; }
   apiKey = val;
-  localStorage.setItem('km_gemini_key', apiKey);
+  LS.set('km_gemini_key', apiKey);
   showKeyStatus("Key saved. You're good to go.", true);
 }
 
 function clearApiKey() {
   apiKey = '';
-  localStorage.removeItem('km_gemini_key');
+  LS.del('km_gemini_key');
   document.getElementById('api-key-input').value = '';
   showKeyStatus('API key cleared from this browser.', true);
   toggleSettings(false);
@@ -1494,8 +1543,23 @@ function populateReview() {
 document.getElementById('submit-btn').addEventListener('click', () => {
   const situation = document.getElementById('situation').value.trim();
   const tried = document.getElementById('tried').value.trim();
+  if (CRISIS_RE.test(situation + ' ' + tried) && !careOk) { showCare(); return; }
+  careOk = false;
   showOutput();
   runAnalysis(situation, tried, dur, urg, '', 0);
+});
+const CRISIS_RE = /(suicid|kill myself|end my life|ending it all|want to die|wanna die|better off dead|self[- ]?harm|hurt myself|cut myself|no reason to live|being abused|abus(e|es|ed|ing) me)/i;
+let careOk = false;
+function showCare() {
+  document.getElementById('loading-state').style.display = 'none';
+  document.getElementById('care-card').style.display = 'block';
+  document.getElementById('panel-out').scrollIntoView({behavior:'smooth', block:'start'});
+}
+document.getElementById('care-continue').addEventListener('click', () => {
+  careOk = true; document.getElementById('care-card').style.display = 'none'; document.getElementById('submit-btn').click();
+});
+document.getElementById('care-back').addEventListener('click', () => {
+  document.getElementById('care-card').style.display = 'none'; document.getElementById('loading-state').style.display = 'block'; goNext('panel-review');
 });
 
 function showOutput() {
@@ -1517,7 +1581,7 @@ function startLoadCycle() {
 
 async function runAnalysis(situation, tried, duration, urgency, extraContext, retryAttempt) {
   retryAttempt = retryAttempt || 0;
-  const prompt = `You are a radical candor advisor. Direct, honest, warm when needed — like a trusted friend who tells the truth. No sugarcoating, no therapy-speak, no vague advice. Radically supportive and candid. Not superior, not preachy.
+  const prompt = `You are a radical candor advisor. Direct, honest, warm when needed — like a trusted friend who tells the truth. No sugarcoating, no therapy-speak, no vague advice. Radically supportive and candid. Not superior, not preachy. If the input suggests crisis, self-harm, abuse or danger, drop the blunt tone: be warm and gentle, and make reaching a trusted person or a local crisis line the first step.
 
 USER INPUT:
 Situation: ${situation}
@@ -1552,36 +1616,37 @@ Respond ONLY with a raw JSON object. No markdown fences, no preamble, no text ou
 
 For clarifying_questions: include 1-3 questions ONLY if more context would meaningfully change the advice. If the situation is clear, return empty array.`;
 
-  const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+  const API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent';
 
   try {
+    if (!apiKey) { const er = new Error('No API key saved yet. Paste your Gemini key at the top of the page, then try again.'); er.fatal = true; throw er; }
     const res = await fetch(API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': apiKey },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } })
     });
     if (!res.ok) {
-      const errData = await res.json().catch(() => ({}));
-      const msg = errData?.error?.message || `HTTP ${res.status}`;
-      const err = new Error(msg);
-      err.status = res.status;
-      throw err;
+      const ed = await res.json().catch(() => ({}));
+      const er = new Error((ed && ed.error && ed.error.message) || ('HTTP ' + res.status));
+      er.status = res.status; throw er;
     }
     const data = await res.json();
-    const raw = data.candidates[0].content.parts[0].text;
-    const clean = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
-    const result = JSON.parse(clean);
+    if (data.promptFeedback && data.promptFeedback.blockReason) { const er = new Error('Gemini declined to analyze this (' + data.promptFeedback.blockReason + '). Try rewording it.'); er.fatal = true; throw er; }
+    const cand = data.candidates && data.candidates[0];
+    const raw = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+    if (!raw) { const er = new Error('Gemini returned an empty answer' + (cand && cand.finishReason ? ' (' + cand.finishReason + ')' : '') + '.'); er.malformed = true; throw er; }
+    let result;
+    try { result = normalizeResult(JSON.parse(raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim())); }
+    catch (pe) { const er = new Error('The answer came back in an unexpected format.'); er.malformed = true; throw er; }
     lastResult = { result, situation, tried, duration, urgency };
     lastFailedParams = null;
-
     clearInterval(loadTimer);
     document.getElementById('loading-state').style.display = 'none';
     renderResults(result);
-    if(typeof window._kmTriggerResolve === 'function') window._kmTriggerResolve();
+    if (typeof window._kmTriggerResolve === 'function') window._kmTriggerResolve();
     document.getElementById('panel-r-asis').scrollIntoView({behavior:'smooth', block:'start'});
-
   } catch (e) {
-    const isTransient = e.status === 429 || e.status === 503 || RETRYABLE_RE.test(e.message || '') || e instanceof TypeError;
+    const isTransient = !e.fatal && (e.malformed || e.status === 429 || e.status === 500 || e.status === 503 || RETRYABLE_RE.test(e.message || '') || e instanceof TypeError);
     if (isTransient && retryAttempt < MAX_AUTO_RETRIES) {
       const nextAttempt = retryAttempt + 1;
       document.getElementById('loading-txt').textContent = `Model's busy — retrying (${nextAttempt}/${MAX_AUTO_RETRIES})...`;
@@ -1591,11 +1656,24 @@ For clarifying_questions: include 1-3 questions ONLY if more context would meani
     clearInterval(loadTimer);
     document.getElementById('loading-state').style.display = 'none';
     lastFailedParams = { situation, tried, duration, urgency, extraContext };
+    let msg = e.message || 'Something went wrong.';
+    if (e instanceof TypeError) msg = "Couldn't reach Google. Check your connection and try again.";
+    else if (e.status === 400 || e.status === 401 || e.status === 403) msg = 'Google rejected the request. Check your API key, or clear it in Settings and paste it again. (' + msg + ')';
     const el = document.getElementById('err-msg');
     el.style.display = 'block';
-    el.innerHTML = esc('Error: ' + e.message) + '<br><button class="retry-btn" onclick="manualRetry()">Retry</button>';
+    el.innerHTML = esc(msg) + '<br><button class="retry-btn" onclick="manualRetry()">Retry</button>';
     console.error('[keep-moving]', e);
   }
+}
+
+function normalizeResult(r) {
+  if (!r || typeof r !== 'object') throw new Error('bad');
+  const S = v => typeof v === 'string' ? v : '', A = v => Array.isArray(v) ? v.filter(x => typeof x === 'string' && x) : [];
+  const o = { asis_title: S(r.asis_title), asis_body: S(r.asis_body), honest_take: S(r.honest_take), tobe_title: S(r.tobe_title), tobe_body: S(r.tobe_body), future_outlook: S(r.future_outlook), steps: {}, paths: [], clarifying_questions: A(r.clarifying_questions).slice(0, 3) };
+  ['now','tomorrow','this_week','this_month','longer'].forEach(k => o.steps[k] = A(r.steps && r.steps[k]));
+  o.paths = (Array.isArray(r.paths) ? r.paths : []).filter(p => p && p.title).slice(0, 3).map(p => ({ title: S(p.title), trade_off: S(p.trade_off), description: S(p.description) }));
+  if (!o.asis_title || !o.asis_body || !o.honest_take || !o.tobe_title || !o.tobe_body) throw new Error('incomplete');
+  return o;
 }
 
 function manualRetry(){

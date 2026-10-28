@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
 <meta name="theme-color" content="#070a12"><title>Keep Moving — the world</title>
-<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;800&family=Inter:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="vendor/fonts.css">
 <style>
 :root{--amber:#f5a623;--teal:#2dd4bf;--ink:#f4f1ea;--bg:#070a12;--muted:#b4bcc8}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
@@ -49,8 +49,9 @@ body.on #start{opacity:0;pointer-events:none}
   <button class="b" id="copy" style="width:100%;justify-content:center;margin-top:12px">Copy link to this world</button>
 </div>
 <div id="hint"></div><div id="fade"></div>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="vendor/three.min.js"></script>
 <script>
+addEventListener('error',()=>{const p=document.querySelector('#start p');if(p&&!window._wOK)p.textContent="Sorry, the world couldn't start on this device. Everything else in Keep Moving still works."});
 const LS={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const $=id=>document.getElementById(id),lerp=(a,b,t)=>a+(b-a)*t,clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;
@@ -204,7 +205,7 @@ function buildVistas(){const c=[];
  vl=out.length?out:[{x:px,z:pz,yaw:0,s:0,p:-.06,t:.05}]}
 function nextVista(){if(!vl.length)buildVistas();const v=vl[vi++%vl.length],f=$('fade');f.style.opacity=1;nextV=T+12.5;
  setTimeout(()=>{px=v.x;pz=v.z;yaw=v.yaw;pitch=v.p;pvT=v.t;camY=hJ(px,pz)+18;f.style.opacity=0},500)}
-function frame(now){if(!(CALM&&now>4000))requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;if(PREVIEW){if(T>=nextV)nextVista();yaw+=Math.sin(T*.25)*.03*dt}
+function frame(now){window._wOK=1;if(!(CALM&&now>4000))requestAnimationFrame(frame);const dt=Math.min(.05,(now-last)/1000);last=now;T+=dt;if(PREVIEW){if(T>=nextV)nextVista();yaw+=Math.sin(T*.25)*.03*dt}
  const turn=(keys.arrowleft||keys.a?1:0)-(keys.arrowright||keys.d?1:0);yaw+=turn*1.2*dt;if(!drag&&!PREVIEW)pitch*=1-Math.min(1,dt*1.5);
  mom=clamp(mom+(resting?-.3:.05)*dt,.2,1);
  const tgt=PREVIEW?6:!started?3:resting?0:14*(.6+.8*mom)*(reduce?.6:1);sp+=(tgt-sp)*Math.min(1,dt*1.5);
